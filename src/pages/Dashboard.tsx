@@ -60,12 +60,20 @@ export default function Dashboard() {
           <div className="text-6xl mb-4">🌙</div>
           <h2 className="font-display text-xl text-white mb-2">还没有梦境记录</h2>
           <p className="text-slate-400 text-sm mb-6">前往录入页面记录你的第一个梦境吧</p>
-          <a
-            href="/record"
-            className="btn-primary inline-block"
-          >
-            开始记录
-          </a>
+          <div className="flex justify-center gap-4">
+            <a
+              href="/record"
+              className="btn-primary inline-block"
+            >
+              开始记录
+            </a>
+            <button
+              onClick={() => (window as any).seedDemoData?.()}
+              className="px-6 py-2.5 rounded-full border border-dreamscape/40 text-dreamscape hover:bg-dreamscape/10 transition-all text-sm font-medium"
+            >
+              加载示例数据
+            </button>
+          </div>
         </div>
       ) : (
         <div className="space-y-6">
