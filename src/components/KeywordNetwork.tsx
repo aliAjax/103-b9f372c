@@ -3,6 +3,13 @@ import * as d3 from 'd3'
 import { useDreamStore } from '@/store/dreamStore'
 import type { CooccurrenceNode, CooccurrenceEdge } from '@/types/dream'
 
+interface NetworkNode extends CooccurrenceNode, d3.SimulationNodeDatum {}
+
+interface SimulationNode extends NetworkNode {
+  fx?: number | null
+  fy?: number | null
+}
+
 export default function KeywordNetwork() {
   const svgRef = useRef<SVGSVGElement>(null)
   const dreams = useDreamStore((s) => s.dreams)
@@ -67,12 +74,12 @@ export default function KeywordNetwork() {
     if (nodes.length === 0) return
 
     const simulation = d3
-      .forceSimulation(nodes as d3.SimulationNodeDatum[])
+      .forceSimulation(nodes as NetworkNode[])
       .force(
         'link',
         d3
-          .forceLink(edges as d3.SimulationLinkDatum<d3.SimulationNodeDatum>[])
-          .id((d: any) => d.id)
+          .forceLink<NetworkNode, CooccurrenceEdge>(edges)
+          .id((d) => (d as NetworkNode).id)
           .distance(80)
       )
       .force('charge', d3.forceManyBody().strength(-200))
@@ -103,20 +110,20 @@ export default function KeywordNetwork() {
       .data(nodes)
       .join('g')
       .style('cursor', 'pointer')
-      .on('click', (_event, d: any) => handleClick(d.id))
+      .on('click', (_event, d) => handleClick(d.id))
       .call(
         d3
-          .drag<SVGGElement, any>()
-          .on('start', (event, d) => {
+          .drag<SVGGElement, NetworkNode>()
+          .on('start', (event, d: SimulationNode) => {
             if (!event.active) simulation.alphaTarget(0.3).restart()
             d.fx = d.x
             d.fy = d.y
           })
-          .on('drag', (event, d) => {
+          .on('drag', (event, d: SimulationNode) => {
             d.fx = event.x
             d.fy = event.y
           })
-          .on('end', (event, d) => {
+          .on('end', (event, d: SimulationNode) => {
             if (!event.active) simulation.alphaTarget(0)
             d.fx = null
             d.fy = null
@@ -150,11 +157,11 @@ export default function KeywordNetwork() {
 
     simulation.on('tick', () => {
       link
-        .attr('x1', (d: any) => d.source.x)
-        .attr('y1', (d: any) => d.source.y)
-        .attr('x2', (d: any) => d.target.x)
-        .attr('y2', (d: any) => d.target.y)
-      node.attr('transform', (d: any) => `translate(${d.x},${d.y})`)
+        .attr('x1', (d) => (d.source as unknown as NetworkNode).x!)
+        .attr('y1', (d) => (d.source as unknown as NetworkNode).y!)
+        .attr('x2', (d) => (d.target as unknown as NetworkNode).x!)
+        .attr('y2', (d) => (d.target as unknown as NetworkNode).y!)
+      node.attr('transform', (d) => `translate(${(d as NetworkNode).x},${(d as NetworkNode).y})`)
     })
 
     return () => {

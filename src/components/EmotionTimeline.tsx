@@ -22,11 +22,12 @@ export default function EmotionTimeline() {
         backgroundColor: 'rgba(15, 19, 52, 0.9)',
         borderColor: 'rgba(124, 58, 237, 0.4)',
         textStyle: { color: '#e2e8f0', fontSize: 12 },
-        formatter: (params: any) => {
-          const idx = params[0].dataIndex
+        formatter: (params: unknown) => {
+          const paramArray = params as Array<{ dataIndex: number; marker: string; seriesName: string; value: number }>
+          const idx = paramArray[0].dataIndex
           const dream = sorted[idx]
           let html = `<div style="font-weight:600;margin-bottom:4px">${dream.date}</div>`
-          params.forEach((p: any) => {
+          paramArray.forEach((p) => {
             html += `<div>${p.marker} ${p.seriesName}: ${p.value}</div>`
           })
           if (dream.text) {

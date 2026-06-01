@@ -3,6 +3,7 @@ import EmotionTimeline from '@/components/EmotionTimeline'
 import KeywordNetwork from '@/components/KeywordNetwork'
 import PeopleFrequency from '@/components/PeopleFrequency'
 import MonthCalendar from '@/components/MonthCalendar'
+import { seedDemoData } from '@/utils/seedData'
 import { Moon, List } from 'lucide-react'
 
 export default function Dashboard() {
@@ -68,7 +69,7 @@ export default function Dashboard() {
               开始记录
             </a>
             <button
-              onClick={() => (window as any).seedDemoData?.()}
+              onClick={seedDemoData}
               className="px-6 py-2.5 rounded-full border border-dreamscape/40 text-dreamscape hover:bg-dreamscape/10 transition-all text-sm font-medium"
             >
               加载示例数据

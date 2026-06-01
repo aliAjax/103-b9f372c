@@ -17,7 +17,6 @@ export default function MonthCalendar() {
 
     const dates = dreams.map((d) => d.date).sort()
     const minDate = dates[0]
-    const maxDate = dates[dates.length - 1]
 
     const now = new Date()
     const endDate = now.toISOString().split('T')[0]
@@ -32,23 +31,15 @@ export default function MonthCalendar() {
 
     const maxCount = Math.max(...data.map((d) => d[1]), 1)
 
-    const months: { name: string; left: string }[] = []
-    const monthSet = new Set<string>()
-    data.forEach(([date]) => {
-      const month = date.substring(0, 7)
-      if (!monthSet.has(month)) {
-        monthSet.add(month)
-      }
-    })
-
     chart.setOption({
       backgroundColor: 'transparent',
       tooltip: {
         backgroundColor: 'rgba(15, 19, 52, 0.95)',
         borderColor: 'rgba(124, 58, 237, 0.4)',
         textStyle: { color: '#e2e8f0', fontSize: 12 },
-        formatter: (params: any) => {
-          const [date, count] = params.value
+        formatter: (params: unknown) => {
+          const { value } = params as { value: [string, number] }
+          const [date, count] = value
           return `${date}<br/>梦境数: ${count}`
         },
       },

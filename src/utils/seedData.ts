@@ -165,13 +165,3 @@ export function seedDemoData() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(dreams))
   window.location.reload()
 }
-
-declare global {
-  interface Window {
-    seedDemoData?: () => void
-  }
-}
-
-if (typeof window !== 'undefined') {
-  window.seedDemoData = seedDemoData
-}
