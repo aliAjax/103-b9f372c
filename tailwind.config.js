@@ -16,8 +16,8 @@ export default {
         deepblue: '#1a1f4e',
       },
       fontFamily: {
-        display: ['ZCOOL QingKe HuangYou', 'cursive'],
-        body: ['Noto Sans SC', 'sans-serif'],
+        display: ['ZCOOL QingKe HuangYou', 'Noto Sans SC', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'cursive'],
+        body: ['Noto Sans SC', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'sans-serif'],
       },
       animation: {
         'pulse-glow': 'pulseGlow 2s ease-in-out infinite',
