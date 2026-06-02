@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useDreamStore } from '@/store/dreamStore'
 import { Search, Star, Eye, MapPin, User, Tag, X, CalendarDays } from 'lucide-react'
 import type { Dream } from '@/types/dream'
@@ -32,9 +33,9 @@ function matchDream(dream: Dream, params: SearchParams): boolean {
 }
 
 export default function SearchPage() {
+  const navigate = useNavigate()
   const dreams = useDreamStore((s) => s.dreams)
   const [params, setParams] = useState<SearchParams>(emptyParams)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const hasAnyFilter = Object.values(params).some(v => v !== '')
 
@@ -49,10 +50,7 @@ export default function SearchPage() {
 
   const clearAll = () => {
     setParams(emptyParams)
-    setExpandedId(null)
   }
-
-  const expandedDream = expandedId ? dreams.find(d => d.id === expandedId) : null
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -175,7 +173,7 @@ export default function SearchPage() {
             <div
               key={dream.id}
               className="glass-card glass-card-hover p-4 space-y-3 cursor-pointer"
-              onClick={() => setExpandedId(dream.id)}
+              onClick={() => navigate(`/dream/${dream.id}`)}
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 text-xs text-slate-400">
@@ -232,77 +230,6 @@ export default function SearchPage() {
             </div>
           ))}
         </div>
-      )}
-
-      {expandedDream && (
-        <>
-          <div className="sidebar-overlay" onClick={() => setExpandedId(null)} />
-          <div className="sidebar-panel">
-            <div className="sticky top-0 z-10 bg-[rgba(15,19,52,0.98)] backdrop-blur-md border-b border-dreamscape/20 px-5 py-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="font-display text-lg text-white">梦境详情</h2>
-                  <p className="text-xs text-slate-400 mt-0.5">{expandedDream.date} {expandedDream.wakeTime}</p>
-                </div>
-                <button
-                  onClick={() => setExpandedId(null)}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-            </div>
-            <div className="p-5 space-y-5">
-              <div className="flex items-center gap-4 text-sm text-slate-400">
-                <span className="flex items-center gap-1">
-                  <Star size={14} className="text-starlight" />
-                  情绪 {expandedDream.emotionScore}/5
-                </span>
-                <span className="flex items-center gap-1">
-                  <Eye size={14} className="text-dreamscape" />
-                  清晰度 {expandedDream.clarityScore}/5
-                </span>
-              </div>
-
-              <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">
-                {expandedDream.text}
-              </p>
-
-              {expandedDream.people.length > 0 && (
-                <div className="space-y-1.5">
-                  <div className="text-xs text-slate-400 flex items-center gap-1"><User size={12} /> 人物</div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {expandedDream.people.map(p => (
-                      <span key={p} className="capsule-tag capsule-tag-default text-xs">{p}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {expandedDream.places.length > 0 && (
-                <div className="space-y-1.5">
-                  <div className="text-xs text-slate-400 flex items-center gap-1"><MapPin size={12} /> 地点</div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {expandedDream.places.map(p => (
-                      <span key={p} className="capsule-tag capsule-tag-default text-xs">{p}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {expandedDream.keywords.length > 0 && (
-                <div className="space-y-1.5">
-                  <div className="text-xs text-slate-400 flex items-center gap-1"><Tag size={12} /> 关键词</div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {expandedDream.keywords.map(k => (
-                      <span key={k} className="capsule-tag capsule-tag-active text-xs">{k}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </>
       )}
     </div>
   )

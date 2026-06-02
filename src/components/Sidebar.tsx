@@ -1,12 +1,13 @@
+import { useNavigate } from 'react-router-dom'
 import { useDreamStore } from '@/store/dreamStore'
-import { X, Trash2, Star, Eye, MapPin, User, Tag } from 'lucide-react'
+import { X, Star, Eye, MapPin, User, Tag } from 'lucide-react'
 
 export default function Sidebar() {
+  const navigate = useNavigate()
   const sidebarOpen = useDreamStore((s) => s.sidebarOpen)
   const selectedKeyword = useDreamStore((s) => s.selectedKeyword)
   const setSidebarOpen = useDreamStore((s) => s.setSidebarOpen)
   const getFilteredDreams = useDreamStore((s) => s.getFilteredDreams)
-  const deleteDream = useDreamStore((s) => s.deleteDream)
 
   const filteredDreams = getFilteredDreams()
 
@@ -42,7 +43,11 @@ export default function Sidebar() {
             filteredDreams.map((dream) => (
               <div
                 key={dream.id}
-                className="glass-card glass-card-hover p-4 space-y-3"
+                className="glass-card glass-card-hover p-4 space-y-3 cursor-pointer"
+                onClick={() => {
+                  setSidebarOpen(false)
+                  navigate(`/dream/${dream.id}`)
+                }}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 text-xs text-slate-400">
@@ -50,13 +55,6 @@ export default function Sidebar() {
                     <span className="text-dreamscape/50">|</span>
                     <span>{dream.wakeTime}</span>
                   </div>
-                  <button
-                    onClick={() => deleteDream(dream.id)}
-                    className="text-slate-600 hover:text-red-400 transition-colors shrink-0"
-                    title="删除"
-                  >
-                    <Trash2 size={14} />
-                  </button>
                 </div>
 
                 <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">
