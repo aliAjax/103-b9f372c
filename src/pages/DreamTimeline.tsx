@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDreamStore } from '@/store/dreamStore'
 import { Clock, Star, Eye, ChevronDown, ChevronUp, Calendar, GripVertical } from 'lucide-react'
@@ -60,7 +60,6 @@ export default function DreamTimeline() {
   const dreams = useDreamStore((s) => s.dreams)
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set())
   const monthRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [showQuickNav, setShowQuickNav] = useState(false)
 
   const groupedDreams = useMemo<GroupedDreams>(() => {
@@ -95,12 +94,8 @@ export default function DreamTimeline() {
 
   const scrollToMonth = (yearMonth: string) => {
     const element = monthRefs.current[yearMonth]
-    if (element && scrollContainerRef.current) {
-      const container = scrollContainerRef.current
-      const containerTop = container.getBoundingClientRect().top
-      const elementTop = element.getBoundingClientRect().top
-      const scrollTop = container.scrollTop + (elementTop - containerTop) - 20
-      container.scrollTo({ top: scrollTop, behavior: 'smooth' })
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
     setShowQuickNav(false)
   }
@@ -205,7 +200,7 @@ export default function DreamTimeline() {
         </div>
       </div>
 
-      <div ref={scrollContainerRef} className="space-y-8">
+      <div className="space-y-8">
         {Object.entries(groupedDreams)
           .sort(([a], [b]) => Number(b) - Number(a))
           .map(([year, monthsData]) => (
