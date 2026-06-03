@@ -39,6 +39,7 @@ interface DreamStore {
   getRecentTags: (type: 'people' | 'places' | 'keywords') => string[]
   getAllTags: () => AllTags
   renameTag: (type: 'people' | 'places' | 'keywords', oldName: string, newName: string) => void
+  importDreams: (dreams: Dream[]) => void
 }
 
 export const useDreamStore = create<DreamStore>((set, get) => ({
@@ -153,5 +154,19 @@ export const useDreamStore = create<DreamStore>((set, get) => ({
       selectedKeyword === oldName ? trimmedNewName : selectedKeyword
 
     set({ dreams: updated, selectedKeyword: newSelectedKeyword })
+  },
+
+  importDreams: (dreams) => {
+    const existingIds = new Set(get().dreams.map((d) => d.id))
+    const newDreams = dreams
+      .filter((d) => !existingIds.has(d.id))
+      .map((d) => ({
+        ...d,
+        id: d.id || crypto.randomUUID(),
+        createdAt: d.createdAt || new Date().toISOString(),
+      }))
+    const updated = [...newDreams, ...get().dreams]
+    saveDreams(updated)
+    set({ dreams: updated })
   },
 }))
