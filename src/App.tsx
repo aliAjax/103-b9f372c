@@ -5,6 +5,7 @@ import Record from '@/pages/Record'
 import Search from '@/pages/Search'
 import MonthlySummary from '@/pages/MonthlySummary'
 import DreamDetail from '@/pages/DreamDetail'
+import TagManager from '@/pages/TagManager'
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
           <Route path="/record" element={<Record />} />
           <Route path="/search" element={<Search />} />
           <Route path="/monthly" element={<MonthlySummary />} />
+          <Route path="/tags" element={<TagManager />} />
           <Route path="/dream/:id" element={<DreamDetail />} />
         </Route>
       </Routes>

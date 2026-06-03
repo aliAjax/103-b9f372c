@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { LayoutDashboard, Moon, Search, CalendarDays } from 'lucide-react'
+import { LayoutDashboard, Moon, Search, CalendarDays, Tags } from 'lucide-react'
 import StarField from './StarField'
 import Sidebar from './Sidebar'
 
@@ -61,6 +61,18 @@ export default function Layout() {
             }
           >
             <CalendarDays size={20} />
+          </NavLink>
+          <NavLink
+            to="/tags"
+            className={({ isActive }) =>
+              `w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                isActive
+                  ? 'bg-dreamscape/30 text-dreamscape shadow-lg shadow-dreamscape/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+              }`
+            }
+          >
+            <Tags size={20} />
           </NavLink>
         </nav>
         <main className="flex-1 overflow-auto">

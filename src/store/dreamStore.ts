@@ -16,6 +16,17 @@ function saveDreams(dreams: Dream[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(dreams))
 }
 
+interface TagCount {
+  name: string
+  count: number
+}
+
+interface AllTags {
+  people: TagCount[]
+  places: TagCount[]
+  keywords: TagCount[]
+}
+
 interface DreamStore {
   dreams: Dream[]
   selectedKeyword: string | null
@@ -26,6 +37,8 @@ interface DreamStore {
   setSidebarOpen: (open: boolean) => void
   getFilteredDreams: () => Dream[]
   getRecentTags: (type: 'people' | 'places' | 'keywords') => string[]
+  getAllTags: () => AllTags
+  renameTag: (type: 'people' | 'places' | 'keywords', oldName: string, newName: string) => void
 }
 
 export const useDreamStore = create<DreamStore>((set, get) => ({
@@ -85,5 +98,60 @@ export const useDreamStore = create<DreamStore>((set, get) => ({
       .sort((a, b) => b[1] - a[1])
       .slice(0, 20)
       .map(([tag]) => tag)
+  },
+
+  getAllTags: () => {
+    const dreams = get().dreams
+    const peopleMap = new Map<string, number>()
+    const placesMap = new Map<string, number>()
+    const keywordsMap = new Map<string, number>()
+
+    dreams.forEach((d) => {
+      d.people.forEach((tag) => {
+        peopleMap.set(tag, (peopleMap.get(tag) || 0) + 1)
+      })
+      d.places.forEach((tag) => {
+        placesMap.set(tag, (placesMap.get(tag) || 0) + 1)
+      })
+      d.keywords.forEach((tag) => {
+        keywordsMap.set(tag, (keywordsMap.get(tag) || 0) + 1)
+      })
+    })
+
+    const mapToSortedArray = (map: Map<string, number>): TagCount[] =>
+      Array.from(map.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+
+    return {
+      people: mapToSortedArray(peopleMap),
+      places: mapToSortedArray(placesMap),
+      keywords: mapToSortedArray(keywordsMap),
+    }
+  },
+
+  renameTag: (type, oldName, newName) => {
+    if (!oldName.trim() || !newName.trim() || oldName === newName) return
+
+    const { dreams, selectedKeyword } = get()
+    const trimmedNewName = newName.trim()
+
+    const updated = dreams.map((dream) => {
+      const tags = dream[type]
+      if (!tags.includes(oldName)) return dream
+
+      const newTags = tags
+        .map((t) => (t === oldName ? trimmedNewName : t))
+        .filter((t, i, arr) => arr.indexOf(t) === i)
+
+      return { ...dream, [type]: newTags }
+    })
+
+    saveDreams(updated)
+
+    const newSelectedKeyword =
+      selectedKeyword === oldName ? trimmedNewName : selectedKeyword
+
+    set({ dreams: updated, selectedKeyword: newSelectedKeyword })
   },
 }))
