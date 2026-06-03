@@ -5,6 +5,7 @@ import Record from '@/pages/Record'
 import Search from '@/pages/Search'
 import MonthlySummary from '@/pages/MonthlySummary'
 import DreamDetail from '@/pages/DreamDetail'
+import EditDream from '@/pages/EditDream'
 import TagManager from '@/pages/TagManager'
 import DataTransfer from '@/pages/DataTransfer'
 
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="/tags" element={<TagManager />} />
           <Route path="/data" element={<DataTransfer />} />
           <Route path="/dream/:id" element={<DreamDetail />} />
+          <Route path="/dream/:id/edit" element={<EditDream />} />
         </Route>
       </Routes>
     </Router>

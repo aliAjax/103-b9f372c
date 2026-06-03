@@ -32,6 +32,7 @@ interface DreamStore {
   selectedKeyword: string | null
   sidebarOpen: boolean
   addDream: (dream: Omit<Dream, 'id' | 'createdAt'>) => void
+  updateDream: (id: string, updates: Omit<Partial<Dream>, 'id' | 'createdAt'>) => void
   deleteDream: (id: string) => void
   selectKeyword: (keyword: string | null) => void
   setSidebarOpen: (open: boolean) => void
@@ -54,6 +55,14 @@ export const useDreamStore = create<DreamStore>((set, get) => ({
       createdAt: new Date().toISOString(),
     }
     const updated = [newDream, ...get().dreams]
+    saveDreams(updated)
+    set({ dreams: updated })
+  },
+
+  updateDream: (id, updates) => {
+    const updated = get().dreams.map((d) =>
+      d.id === id ? { ...d, ...updates } : d
+    )
     saveDreams(updated)
     set({ dreams: updated })
   },

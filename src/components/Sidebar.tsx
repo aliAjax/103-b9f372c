@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useDreamStore } from '@/store/dreamStore'
-import { X, Star, Eye, MapPin, User, Tag } from 'lucide-react'
+import { X, Star, Eye, MapPin, User, Tag, Edit3 } from 'lucide-react'
 
 export default function Sidebar() {
   const navigate = useNavigate()
@@ -55,6 +55,17 @@ export default function Sidebar() {
                     <span className="text-dreamscape/50">|</span>
                     <span>{dream.wakeTime}</span>
                   </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSidebarOpen(false)
+                      navigate(`/dream/${dream.id}/edit`)
+                    }}
+                    className="text-slate-500 hover:text-dreamscape transition-colors"
+                    title="编辑"
+                  >
+                    <Edit3 size={14} />
+                  </button>
                 </div>
 
                 <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">

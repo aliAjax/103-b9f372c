@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDreamStore } from '@/store/dreamStore'
-import { ArrowLeft, Trash2, Star, Eye, MapPin, User, Tag, Clock, CalendarDays } from 'lucide-react'
+import { ArrowLeft, Trash2, Edit3, Star, Eye, MapPin, User, Tag, Clock, CalendarDays } from 'lucide-react'
 
 export default function DreamDetail() {
   const { id } = useParams<{ id: string }>()
@@ -45,13 +45,22 @@ export default function DreamDetail() {
           <ArrowLeft size={18} />
           返回
         </button>
-        <button
-          onClick={handleDelete}
-          className="flex items-center gap-2 px-4 py-2 rounded-full border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-all text-sm font-medium"
-        >
-          <Trash2 size={14} />
-          删除
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate(`/dream/${dream.id}/edit`)}
+            className="flex items-center gap-2 px-4 py-2 rounded-full border border-dreamscape/40 text-dreamscape hover:bg-dreamscape/10 transition-all text-sm font-medium"
+          >
+            <Edit3 size={14} />
+            编辑
+          </button>
+          <button
+            onClick={handleDelete}
+            className="flex items-center gap-2 px-4 py-2 rounded-full border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-all text-sm font-medium"
+          >
+            <Trash2 size={14} />
+            删除
+          </button>
+        </div>
       </div>
 
       <div className="glass-card p-6 space-y-6">
