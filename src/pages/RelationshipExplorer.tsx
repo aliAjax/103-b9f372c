@@ -204,12 +204,14 @@ export default function RelationshipExplorer() {
 
     svg.attr('width', width).attr('height', height)
 
+    const simEdges = filteredEdges.map((e) => ({ ...e, source: e.source as string, target: e.target as string }))
+
     const simulation = d3
       .forceSimulation(filteredNodes as SimulationNode[])
       .force(
         'link',
         d3
-          .forceLink<SimulationNode, RelationshipEdge>(filteredEdges)
+          .forceLink<SimulationNode, RelationshipEdge>(simEdges)
           .id((d) => (d as SimulationNode).id)
           .distance(100)
           .strength(0.6)
@@ -253,7 +255,7 @@ export default function RelationshipExplorer() {
     const link = g
       .append('g')
       .selectAll('line')
-      .data(filteredEdges)
+      .data(simEdges)
       .join('line')
       .attr('stroke', (_d, i) => `url(#gradient-${i})`)
       .attr('stroke-opacity', 0.4)
