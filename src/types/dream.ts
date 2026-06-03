@@ -21,3 +21,22 @@ export interface CooccurrenceEdge {
   target: string
   weight: number
 }
+
+export type NodeType = 'person' | 'place' | 'keyword'
+
+export interface RelationshipNode extends CooccurrenceNode {
+  type: NodeType
+}
+
+export interface RelationshipEdge {
+  source: string
+  target: string
+  weight: number
+  dreamIds: string[]
+}
+
+export interface NodeNeighbor {
+  id: string
+  type: NodeType
+  weight: number
+}

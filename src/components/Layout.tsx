@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { LayoutDashboard, Moon, Search, CalendarDays, Clock, Brain, Tags, Database } from 'lucide-react'
+import { LayoutDashboard, Moon, Search, CalendarDays, Clock, Network, Brain, Tags, Database } from 'lucide-react'
 import StarField from './StarField'
 import Sidebar from './Sidebar'
 
@@ -74,6 +74,19 @@ export default function Layout() {
             title="梦境时间轴"
           >
             <Clock size={20} />
+          </NavLink>
+          <NavLink
+            to="/explorer"
+            className={({ isActive }) =>
+              `w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                isActive
+                  ? 'bg-dreamscape/30 text-dreamscape shadow-lg shadow-dreamscape/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+              }`
+            }
+            title="关系探索"
+          >
+            <Network size={20} />
           </NavLink>
           <NavLink
             to="/insights"
