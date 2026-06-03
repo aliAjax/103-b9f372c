@@ -15,10 +15,37 @@ const emptyEditing: EditingState = {
 }
 
 export default function TagManager() {
-  const getAllTags = useDreamStore((s) => s.getAllTags)
+  const dreams = useDreamStore((s) => s.dreams)
   const renameTag = useDreamStore((s) => s.renameTag)
 
-  const allTags = useMemo(() => getAllTags(), [getAllTags])
+  const allTags = useMemo(() => {
+    const peopleMap = new Map<string, number>()
+    const placesMap = new Map<string, number>()
+    const keywordsMap = new Map<string, number>()
+
+    dreams.forEach((d) => {
+      d.people.forEach((tag) => {
+        peopleMap.set(tag, (peopleMap.get(tag) || 0) + 1)
+      })
+      d.places.forEach((tag) => {
+        placesMap.set(tag, (placesMap.get(tag) || 0) + 1)
+      })
+      d.keywords.forEach((tag) => {
+        keywordsMap.set(tag, (keywordsMap.get(tag) || 0) + 1)
+      })
+    })
+
+    const mapToSortedArray = (map: Map<string, number>) =>
+      Array.from(map.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+
+    return {
+      people: mapToSortedArray(peopleMap),
+      places: mapToSortedArray(placesMap),
+      keywords: mapToSortedArray(keywordsMap),
+    }
+  }, [dreams])
   const [searchText, setSearchText] = useState('')
   const [editing, setEditing] = useState<EditingState>(emptyEditing)
 
