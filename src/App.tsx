@@ -9,6 +9,7 @@ import DreamDetail from '@/pages/DreamDetail'
 import EditDream from '@/pages/EditDream'
 import TagManager from '@/pages/TagManager'
 import DataTransfer from '@/pages/DataTransfer'
+import DreamTimeline from '@/pages/DreamTimeline'
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="/record" element={<Record />} />
           <Route path="/search" element={<Search />} />
           <Route path="/monthly" element={<MonthlySummary />} />
+          <Route path="/timeline" element={<DreamTimeline />} />
           <Route path="/insights" element={<DreamInsights />} />
           <Route path="/tags" element={<TagManager />} />
           <Route path="/data" element={<DataTransfer />} />
