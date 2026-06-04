@@ -1,8 +1,9 @@
 import { create } from 'zustand'
-import type { Dream, Backup } from '@/types/dream'
+import type { Dream, Backup, SearchView, SearchViewFilters } from '@/types/dream'
 
 const STORAGE_KEY = 'dreamscope_dreams'
 const BACKUP_STORAGE_KEY = 'dreamscope_backups'
+const SEARCH_VIEWS_STORAGE_KEY = 'dreamscope_search_views'
 
 function loadDreams(): Dream[] {
   try {
@@ -28,6 +29,19 @@ function loadBackups(): Backup[] {
 
 function saveBackups(backups: Backup[]) {
   localStorage.setItem(BACKUP_STORAGE_KEY, JSON.stringify(backups))
+}
+
+function loadSearchViews(): SearchView[] {
+  try {
+    const raw = localStorage.getItem(SEARCH_VIEWS_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+function saveSearchViews(views: SearchView[]) {
+  localStorage.setItem(SEARCH_VIEWS_STORAGE_KEY, JSON.stringify(views))
 }
 
 interface TagCount {
@@ -60,6 +74,11 @@ interface DreamStore {
   deleteBackup: (id: string) => void
   restoreBackup: (id: string) => void
   refreshBackups: () => void
+  searchViews: SearchView[]
+  createSearchView: (name: string, filters: SearchViewFilters) => SearchView
+  updateSearchView: (id: string, updates: Partial<Pick<SearchView, 'name' | 'filters'>>) => void
+  deleteSearchView: (id: string) => void
+  refreshSearchViews: () => void
 }
 
 export const useDreamStore = create<DreamStore>((set, get) => ({
@@ -67,6 +86,7 @@ export const useDreamStore = create<DreamStore>((set, get) => ({
   selectedKeyword: null,
   sidebarOpen: false,
   backups: loadBackups(),
+  searchViews: loadSearchViews(),
 
   addDream: (dream) => {
     const newDream: Dream = {
@@ -163,26 +183,53 @@ export const useDreamStore = create<DreamStore>((set, get) => ({
   renameTag: (type, oldName, newName) => {
     if (!oldName.trim() || !newName.trim() || oldName === newName) return
 
-    const { dreams, selectedKeyword } = get()
+    const { dreams, selectedKeyword, searchViews } = get()
     const trimmedNewName = newName.trim()
+    const trimmedOldName = oldName.trim()
 
     const updated = dreams.map((dream) => {
       const tags = dream[type]
-      if (!tags.includes(oldName)) return dream
+      if (!tags.includes(trimmedOldName)) return dream
 
       const newTags = tags
-        .map((t) => (t === oldName ? trimmedNewName : t))
+        .map((t) => (t === trimmedOldName ? trimmedNewName : t))
         .filter((t, i, arr) => arr.indexOf(t) === i)
 
       return { ...dream, [type]: newTags }
     })
 
+    const filterFieldMap: Record<string, keyof SearchViewFilters> = {
+      people: 'person',
+      places: 'place',
+      keywords: 'keyword',
+    }
+    const filterField = filterFieldMap[type]
+
+    const updatedViews = searchViews.map((view) => {
+      const filterValue = view.filters[filterField]
+      if (!filterValue) return view
+
+      if (filterValue.toLowerCase().includes(trimmedOldName.toLowerCase())) {
+        const newValue = filterValue.replace(
+          new RegExp(trimmedOldName, 'i'),
+          trimmedNewName
+        )
+        return {
+          ...view,
+          filters: { ...view.filters, [filterField]: newValue },
+          updatedAt: new Date().toISOString(),
+        }
+      }
+      return view
+    })
+
     saveDreams(updated)
+    saveSearchViews(updatedViews)
 
     const newSelectedKeyword =
-      selectedKeyword === oldName ? trimmedNewName : selectedKeyword
+      selectedKeyword === trimmedOldName ? trimmedNewName : selectedKeyword
 
-    set({ dreams: updated, selectedKeyword: newSelectedKeyword })
+    set({ dreams: updated, selectedKeyword: newSelectedKeyword, searchViews: updatedViews })
   },
 
   importDreams: (dreams) => {
@@ -230,5 +277,48 @@ export const useDreamStore = create<DreamStore>((set, get) => ({
 
   refreshBackups: () => {
     set({ backups: loadBackups() })
+  },
+
+  createSearchView: (name, filters) => {
+    const { searchViews } = get()
+    const now = new Date().toISOString()
+    const newView: SearchView = {
+      id: crypto.randomUUID(),
+      name: name.trim(),
+      filters: { ...filters },
+      createdAt: now,
+      updatedAt: now,
+    }
+    const updated = [newView, ...searchViews]
+    saveSearchViews(updated)
+    set({ searchViews: updated })
+    return newView
+  },
+
+  updateSearchView: (id, updates) => {
+    const { searchViews } = get()
+    const updated = searchViews.map((view) =>
+      view.id === id
+        ? {
+            ...view,
+            ...(updates.name ? { name: updates.name.trim() } : {}),
+            ...(updates.filters ? { filters: { ...updates.filters } } : {}),
+            updatedAt: new Date().toISOString(),
+          }
+        : view
+    )
+    saveSearchViews(updated)
+    set({ searchViews: updated })
+  },
+
+  deleteSearchView: (id) => {
+    const { searchViews } = get()
+    const updated = searchViews.filter((v) => v.id !== id)
+    saveSearchViews(updated)
+    set({ searchViews: updated })
+  },
+
+  refreshSearchViews: () => {
+    set({ searchViews: loadSearchViews() })
   },
 }))

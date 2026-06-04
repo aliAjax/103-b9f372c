@@ -48,3 +48,20 @@ export interface Backup {
   dreamCount: number
   dreams: Dream[]
 }
+
+export interface SearchViewFilters {
+  keyword: string
+  person: string
+  place: string
+  dateFrom: string
+  dateTo: string
+  text: string
+}
+
+export interface SearchView {
+  id: string
+  name: string
+  filters: SearchViewFilters
+  createdAt: string
+  updatedAt: string
+}
