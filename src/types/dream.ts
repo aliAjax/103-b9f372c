@@ -40,3 +40,11 @@ export interface NodeNeighbor {
   type: NodeType
   weight: number
 }
+
+export interface Backup {
+  id: string
+  name: string
+  createdAt: string
+  dreamCount: number
+  dreams: Dream[]
+}

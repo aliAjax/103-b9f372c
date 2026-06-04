@@ -1,7 +1,8 @@
 import { create } from 'zustand'
-import type { Dream } from '@/types/dream'
+import type { Dream, Backup } from '@/types/dream'
 
 const STORAGE_KEY = 'dreamscope_dreams'
+const BACKUP_STORAGE_KEY = 'dreamscope_backups'
 
 function loadDreams(): Dream[] {
   try {
@@ -14,6 +15,19 @@ function loadDreams(): Dream[] {
 
 function saveDreams(dreams: Dream[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(dreams))
+}
+
+function loadBackups(): Backup[] {
+  try {
+    const raw = localStorage.getItem(BACKUP_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+function saveBackups(backups: Backup[]) {
+  localStorage.setItem(BACKUP_STORAGE_KEY, JSON.stringify(backups))
 }
 
 interface TagCount {
@@ -41,12 +55,18 @@ interface DreamStore {
   getAllTags: () => AllTags
   renameTag: (type: 'people' | 'places' | 'keywords', oldName: string, newName: string) => void
   importDreams: (dreams: Dream[]) => void
+  backups: Backup[]
+  createBackup: (name: string) => Backup
+  deleteBackup: (id: string) => void
+  restoreBackup: (id: string) => void
+  refreshBackups: () => void
 }
 
 export const useDreamStore = create<DreamStore>((set, get) => ({
   dreams: loadDreams(),
   selectedKeyword: null,
   sidebarOpen: false,
+  backups: loadBackups(),
 
   addDream: (dream) => {
     const newDream: Dream = {
@@ -177,5 +197,38 @@ export const useDreamStore = create<DreamStore>((set, get) => ({
     const updated = [...newDreams, ...get().dreams]
     saveDreams(updated)
     set({ dreams: updated })
+  },
+
+  createBackup: (name) => {
+    const { dreams, backups } = get()
+    const newBackup: Backup = {
+      id: crypto.randomUUID(),
+      name: name.trim(),
+      createdAt: new Date().toISOString(),
+      dreamCount: dreams.length,
+      dreams: JSON.parse(JSON.stringify(dreams)),
+    }
+    const updatedBackups = [newBackup, ...backups]
+    saveBackups(updatedBackups)
+    set({ backups: updatedBackups })
+    return newBackup
+  },
+
+  deleteBackup: (id) => {
+    const updatedBackups = get().backups.filter((b) => b.id !== id)
+    saveBackups(updatedBackups)
+    set({ backups: updatedBackups })
+  },
+
+  restoreBackup: (id) => {
+    const backup = get().backups.find((b) => b.id === id)
+    if (!backup) return
+    const restoredDreams = JSON.parse(JSON.stringify(backup.dreams))
+    saveDreams(restoredDreams)
+    set({ dreams: restoredDreams, selectedKeyword: null, sidebarOpen: false })
+  },
+
+  refreshBackups: () => {
+    set({ backups: loadBackups() })
   },
 }))

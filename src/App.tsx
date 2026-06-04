@@ -9,6 +9,7 @@ import DreamDetail from '@/pages/DreamDetail'
 import EditDream from '@/pages/EditDream'
 import TagManager from '@/pages/TagManager'
 import DataTransfer from '@/pages/DataTransfer'
+import BackupCenter from '@/pages/BackupCenter'
 import DreamTimeline from '@/pages/DreamTimeline'
 import RelationshipExplorer from '@/pages/RelationshipExplorer'
 
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/insights" element={<DreamInsights />} />
           <Route path="/tags" element={<TagManager />} />
           <Route path="/data" element={<DataTransfer />} />
+          <Route path="/backup" element={<BackupCenter />} />
           <Route path="/dream/:id" element={<DreamDetail />} />
           <Route path="/dream/:id/edit" element={<EditDream />} />
         </Route>
