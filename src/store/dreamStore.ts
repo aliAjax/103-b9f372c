@@ -210,8 +210,9 @@ export const useDreamStore = create<DreamStore>((set, get) => ({
       if (!filterValue) return view
 
       if (filterValue.toLowerCase().includes(trimmedOldName.toLowerCase())) {
+        const escaped = trimmedOldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
         const newValue = filterValue.replace(
-          new RegExp(trimmedOldName, 'i'),
+          new RegExp(escaped, 'g'),
           trimmedNewName
         )
         return {
