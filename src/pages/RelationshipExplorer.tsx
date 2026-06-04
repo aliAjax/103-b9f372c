@@ -302,9 +302,16 @@ export default function RelationshipExplorer() {
       }
       return next
     })
+    setSelectedNode(null)
   }, [])
 
   const simulationRef = useRef<d3.Simulation<SimulationNode, undefined> | null>(null)
+
+  useEffect(() => {
+    if (selectedNode && !filteredNodeIds.has(selectedNode)) {
+      setSelectedNode(null)
+    }
+  }, [selectedNode, filteredNodeIds])
 
   useEffect(() => {
     if (!svgRef.current) return
@@ -714,17 +721,17 @@ export default function RelationshipExplorer() {
         </div>
 
         <div className="w-96 flex flex-col gap-4 overflow-hidden">
-          {selectedNode ? (
+          {selectedNode && selectedNodeData ? (
             <>
               <div className="glass-card glass-card-hover p-5">
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xl">{TYPE_ICONS[selectedNodeData!.type]}</span>
+                      <span className="text-xl">{TYPE_ICONS[selectedNodeData.type]}</span>
                       <h2 className="font-display text-xl text-white">{selectedNode}</h2>
                     </div>
                     <p className="text-xs text-slate-400">
-                      {TYPE_LABELS[selectedNodeData!.type]} · 出现 {selectedNodeData!.count} 次
+                      {TYPE_LABELS[selectedNodeData.type]} · 出现 {selectedNodeData.count} 次
                     </p>
                   </div>
                   <button
@@ -874,7 +881,7 @@ export default function RelationshipExplorer() {
             </>
           ) : filteredNodes.length < 2 ? (
             <div className="glass-card p-8 flex flex-col items-center justify-center h-full text-center">
-              <div className="text-5xl mb-4">�</div>
+              <div className="text-5xl mb-4">🔍</div>
               <h3 className="font-display text-lg text-white mb-2">
                 {dateFilteredDreams.length === 0 ? '暂无数据' : '节点不足'}
               </h3>
@@ -895,7 +902,7 @@ export default function RelationshipExplorer() {
             </div>
           ) : (
             <div className="glass-card p-8 flex flex-col items-center justify-center h-full text-center">
-              <div className="text-5xl mb-4">�👆</div>
+              <div className="text-5xl mb-4">👆</div>
               <h3 className="font-display text-lg text-white mb-2">选择一个节点</h3>
               <p className="text-sm text-slate-400">
                 点击网络图中的任意节点，查看相关梦境和关联节点
