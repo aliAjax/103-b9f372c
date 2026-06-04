@@ -139,7 +139,7 @@ function analyzeStreaks(dreams: Dream[]): { streaks: StreakData[]; maxStreak: nu
   const endDate = sortedDates[sortedDates.length - 1]
 
   const streaks: StreakData[] = []
-  let current = new Date(startDate)
+  const current = new Date(startDate)
   const end = new Date(endDate)
 
   while (current <= end) {

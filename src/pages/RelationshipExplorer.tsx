@@ -2,9 +2,19 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import * as d3 from 'd3'
 import { useNavigate } from 'react-router-dom'
 import { useDreamStore } from '@/store/dreamStore'
-import { Network, Users, MapPin, Tag, X, Star, Eye, Edit3, Sparkles } from 'lucide-react'
+import { Network, Users, MapPin, Tag, X, Star, Eye, Edit3, Sparkles, Calendar, Filter, SlidersHorizontal, RotateCcw } from 'lucide-react'
 import type { Dream, RelationshipNode, RelationshipEdge, NodeType, NodeNeighbor } from '@/types/dream'
 import { seedDemoData } from '@/utils/seedData'
+
+type TimeRangeType = 'all' | '30days' | '90days' | 'month' | 'custom'
+
+interface FilterState {
+  timeRange: TimeRangeType
+  selectedMonth: string
+  dateFrom: string
+  dateTo: string
+  minAssociation: number
+}
 
 interface SimulationNode extends RelationshipNode, d3.SimulationNodeDatum {
   fx?: number | null
@@ -125,6 +135,54 @@ function getNeighbors(
     .sort((a, b) => b.weight - a.weight)
 }
 
+function getDateRangeForTimeRange(
+  timeRange: TimeRangeType,
+  selectedMonth: string,
+  dateFrom: string,
+  dateTo: string,
+  today: Date
+): { from: string | null; to: string | null } {
+  const formatDate = (d: Date) => d.toISOString().split('T')[0]
+
+  switch (timeRange) {
+    case 'all':
+      return { from: null, to: null }
+    case '30days': {
+      const from = new Date(today)
+      from.setDate(from.getDate() - 30)
+      return { from: formatDate(from), to: formatDate(today) }
+    }
+    case '90days': {
+      const from = new Date(today)
+      from.setDate(from.getDate() - 90)
+      return { from: formatDate(from), to: formatDate(today) }
+    }
+    case 'month': {
+      if (!selectedMonth) return { from: null, to: null }
+      const [year, month] = selectedMonth.split('-').map(Number)
+      const from = new Date(year, month - 1, 1)
+      const to = new Date(year, month, 0)
+      return { from: formatDate(from), to: formatDate(to) }
+    }
+    case 'custom': {
+      return {
+        from: dateFrom || null,
+        to: dateTo || null,
+      }
+    }
+    default:
+      return { from: null, to: null }
+  }
+}
+
+function filterDreamsByDate(dreams: Dream[], from: string | null, to: string | null): Dream[] {
+  return dreams.filter((d) => {
+    if (from && d.date < from) return false
+    if (to && d.date > to) return false
+    return true
+  })
+}
+
 export default function RelationshipExplorer() {
   const navigate = useNavigate()
   const dreams = useDreamStore((s) => s.dreams)
@@ -134,12 +192,48 @@ export default function RelationshipExplorer() {
   const [typeFilter, setTypeFilter] = useState<Set<NodeType>>(
     new Set(['person', 'place', 'keyword'])
   )
+  const [showFilters, setShowFilters] = useState(true)
+  const [filters, setFilters] = useState<FilterState>({
+    timeRange: 'all',
+    selectedMonth: '',
+    dateFrom: '',
+    dateTo: '',
+    minAssociation: 1,
+  })
 
-  const { nodes, edges } = useMemo(() => buildGraphData(dreams), [dreams])
+  const today = useMemo(() => new Date(), [])
+
+  const dateRange = useMemo(
+    () => getDateRangeForTimeRange(filters.timeRange, filters.selectedMonth, filters.dateFrom, filters.dateTo, today),
+    [filters, today]
+  )
+
+  const dateFilteredDreams = useMemo(
+    () => filterDreamsByDate(dreams, dateRange.from, dateRange.to),
+    [dreams, dateRange]
+  )
+
+  const { nodes, edges } = useMemo(() => buildGraphData(dateFilteredDreams), [dateFilteredDreams])
+
+  const maxWeight = useMemo(() => Math.max(...edges.map((e) => e.weight), 1), [edges])
+
+  const strengthFilteredEdges = useMemo(
+    () => edges.filter((e) => e.weight >= filters.minAssociation),
+    [edges, filters.minAssociation]
+  )
+
+  const strengthFilteredNodeIds = useMemo(() => {
+    const ids = new Set<string>()
+    strengthFilteredEdges.forEach((e) => {
+      ids.add(e.source)
+      ids.add(e.target)
+    })
+    return ids
+  }, [strengthFilteredEdges])
 
   const filteredNodes = useMemo(
-    () => nodes.filter((n) => typeFilter.has(n.type)),
-    [nodes, typeFilter]
+    () => nodes.filter((n) => typeFilter.has(n.type) && strengthFilteredNodeIds.has(n.id)),
+    [nodes, typeFilter, strengthFilteredNodeIds]
   )
 
   const filteredNodeIds = useMemo(
@@ -149,26 +243,45 @@ export default function RelationshipExplorer() {
 
   const filteredEdges = useMemo(
     () =>
-      edges.filter(
+      strengthFilteredEdges.filter(
         (e) => filteredNodeIds.has(e.source) && filteredNodeIds.has(e.target)
       ),
-    [edges, filteredNodeIds]
+    [strengthFilteredEdges, filteredNodeIds]
   )
 
+  const hasFilters = filters.timeRange !== 'all' || filters.minAssociation > 1
+
   const relatedDreams = useMemo(
-    () => (selectedNode ? getRelatedDreams(dreams, selectedNode) : []),
-    [dreams, selectedNode]
+    () => (selectedNode ? getRelatedDreams(dateFilteredDreams, selectedNode) : []),
+    [dateFilteredDreams, selectedNode]
   )
 
   const neighbors = useMemo(
-    () => (selectedNode ? getNeighbors(selectedNode, nodes, edges) : []),
-    [selectedNode, nodes, edges]
+    () => (selectedNode ? getNeighbors(selectedNode, filteredNodes, filteredEdges) : []),
+    [selectedNode, filteredNodes, filteredEdges]
   )
 
   const selectedNodeData = useMemo(
-    () => nodes.find((n) => n.id === selectedNode) || null,
-    [nodes, selectedNode]
+    () => filteredNodes.find((n) => n.id === selectedNode) || null,
+    [filteredNodes, selectedNode]
   )
+
+  const resetFilters = useCallback(() => {
+    setFilters({
+      timeRange: 'all',
+      selectedMonth: '',
+      dateFrom: '',
+      dateTo: '',
+      minAssociation: 1,
+    })
+    setTypeFilter(new Set(['person', 'place', 'keyword']))
+    setSelectedNode(null)
+  }, [])
+
+  const updateFilter = useCallback(<K extends keyof FilterState>(key: K, value: FilterState[K]) => {
+    setFilters((prev) => ({ ...prev, [key]: value }))
+    setSelectedNode(null)
+  }, [])
 
   const handleNodeClick = useCallback(
     (nodeId: string) => {
@@ -191,11 +304,18 @@ export default function RelationshipExplorer() {
     })
   }, [])
 
+  const simulationRef = useRef<d3.Simulation<SimulationNode, undefined> | null>(null)
+
   useEffect(() => {
-    if (!svgRef.current || filteredNodes.length === 0) return
+    if (!svgRef.current) return
 
     const svg = d3.select(svgRef.current)
     svg.selectAll('*').remove()
+
+    if (simulationRef.current) {
+      simulationRef.current.stop()
+      simulationRef.current = null
+    }
 
     const width = svgRef.current.parentElement!.clientWidth
     const height = containerRef.current
@@ -203,6 +323,10 @@ export default function RelationshipExplorer() {
       : 600
 
     svg.attr('width', width).attr('height', height)
+
+    if (filteredNodes.length < 2) {
+      return
+    }
 
     const simEdges = filteredEdges.map((e) => ({ ...e, source: e.source as string, target: e.target as string }))
 
@@ -219,6 +343,8 @@ export default function RelationshipExplorer() {
       .force('charge', d3.forceManyBody().strength(-300))
       .force('center', d3.forceCenter(width / 2, height / 2))
       .force('collision', d3.forceCollide().radius(40))
+
+    simulationRef.current = simulation
 
     const g = svg.append('g')
 
@@ -334,6 +460,9 @@ export default function RelationshipExplorer() {
 
     return () => {
       simulation.stop()
+      if (simulationRef.current === simulation) {
+        simulationRef.current = null
+      }
     }
   }, [filteredNodes, filteredEdges, selectedNode, handleNodeClick])
 
@@ -377,6 +506,22 @@ export default function RelationshipExplorer() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+                showFilters || hasFilters
+                  ? 'bg-white/10 text-white border border-white/20'
+                  : 'bg-white/5 text-slate-500 border border-transparent opacity-50'
+              }`}
+            >
+              <SlidersHorizontal size={14} />
+              <span>筛选</span>
+              {hasFilters && (
+                <span className="w-4 h-4 rounded-full bg-dreamscape text-[10px] flex items-center justify-center text-black font-bold">
+                  !
+                </span>
+              )}
+            </button>
             {(['person', 'place', 'keyword'] as NodeType[]).map((type) => (
               <button
                 key={type}
@@ -396,6 +541,117 @@ export default function RelationshipExplorer() {
             ))}
           </div>
         </div>
+
+        {showFilters && (
+          <div className="mt-4 glass-card p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2 text-sm text-slate-300">
+                <Filter size={16} className="text-dreamscape" />
+                <span className="font-medium">筛选条件</span>
+              </div>
+              {hasFilters && (
+                <button
+                  onClick={resetFilters}
+                  className="text-xs text-slate-400 hover:text-white transition-colors flex items-center gap-1"
+                >
+                  <RotateCcw size={12} />
+                  重置
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5 flex items-center gap-1">
+                  <Calendar size={12} /> 时间范围
+                </label>
+                <select
+                  value={filters.timeRange}
+                  onChange={(e) => updateFilter('timeRange', e.target.value as TimeRangeType)}
+                  className="glow-input w-full px-3 py-2 text-sm bg-slate-900/50"
+                >
+                  <option value="all">全部时间</option>
+                  <option value="30days">最近 30 天</option>
+                  <option value="90days">最近 90 天</option>
+                  <option value="month">按月份</option>
+                  <option value="custom">自定义范围</option>
+                </select>
+              </div>
+
+              {filters.timeRange === 'month' && (
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1.5">选择月份</label>
+                  <input
+                    type="month"
+                    value={filters.selectedMonth}
+                    onChange={(e) => updateFilter('selectedMonth', e.target.value)}
+                    className="glow-input w-full px-3 py-2 text-sm bg-slate-900/50"
+                  />
+                </div>
+              )}
+
+              {filters.timeRange === 'custom' && (
+                <>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1.5">起始日期</label>
+                    <input
+                      type="date"
+                      value={filters.dateFrom}
+                      onChange={(e) => updateFilter('dateFrom', e.target.value)}
+                      className="glow-input w-full px-3 py-2 text-sm bg-slate-900/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1.5">结束日期</label>
+                    <input
+                      type="date"
+                      value={filters.dateTo}
+                      onChange={(e) => updateFilter('dateTo', e.target.value)}
+                      className="glow-input w-full px-3 py-2 text-sm bg-slate-900/50"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className={filters.timeRange === 'custom' ? 'lg:col-span-4' : ''}>
+                <label className="block text-xs text-slate-400 mb-1.5 flex items-center gap-1">
+                  <Sparkles size={12} className="text-starlight" />
+                  最小关联次数: {filters.minAssociation}
+                  <span className="text-slate-500 font-normal">(最高 {maxWeight})</span>
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={1}
+                    max={maxWeight}
+                    value={filters.minAssociation}
+                    onChange={(e) => updateFilter('minAssociation', parseInt(e.target.value))}
+                    className="flex-1 h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-dreamscape"
+                  />
+                  <input
+                    type="number"
+                    min={1}
+                    max={maxWeight}
+                    value={filters.minAssociation}
+                    onChange={(e) => updateFilter('minAssociation', Math.min(maxWeight, Math.max(1, parseInt(e.target.value) || 1)))}
+                    className="glow-input w-20 px-2 py-1.5 text-sm text-center bg-slate-900/50"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between text-xs text-slate-500">
+              <div>
+                筛选后: {dateFilteredDreams.length} 条梦境 · {filteredNodes.length} 个节点 · {filteredEdges.length} 条关联
+              </div>
+              {dateRange.from && dateRange.to && (
+                <div>
+                  日期范围: {dateRange.from} ~ {dateRange.to}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 flex overflow-hidden px-6 pb-6">
@@ -405,7 +661,7 @@ export default function RelationshipExplorer() {
         >
           <div className="flex items-center justify-between mb-3">
             <div className="text-xs text-slate-500">
-              {filteredNodes.length} 个节点 · {filteredEdges.length} 条关联 · 点击节点查看详情 · 拖拽可移动
+              {filteredNodes.length} 个节点 · {filteredEdges.length} 条关联 · {filteredNodes.length >= 2 ? '点击节点查看详情 · 拖拽可移动' : '需要至少 2 个节点才能显示网络图'}
             </div>
             <div className="flex items-center gap-2 text-xs text-slate-500">
               <div className="flex items-center gap-1">
@@ -431,7 +687,30 @@ export default function RelationshipExplorer() {
               </div>
             </div>
           </div>
-          <svg ref={svgRef} className="w-full" />
+          {filteredNodes.length < 2 ? (
+            <div className="h-full flex flex-col items-center justify-center text-center py-16">
+              <div className="text-5xl mb-4">🔍</div>
+              <h3 className="font-display text-lg text-white mb-2">
+                {dateFilteredDreams.length === 0 ? '该时间范围内没有梦境' : '筛选结果不足以生成网络图'}
+              </h3>
+              <p className="text-sm text-slate-400 mb-4 max-w-md">
+                {dateFilteredDreams.length === 0
+                  ? '当前选择的时间范围内没有记录的梦境，请尝试调整时间范围'
+                  : `当前筛选条件下只有 ${filteredNodes.length} 个节点，需要至少 2 个节点才能显示关联网络。请尝试降低最小关联次数或调整其他筛选条件。`}
+              </p>
+              {hasFilters && (
+                <button
+                  onClick={resetFilters}
+                  className="btn-primary px-4 py-2 text-sm flex items-center gap-2"
+                >
+                  <RotateCcw size={14} />
+                  重置筛选条件
+                </button>
+              )}
+            </div>
+          ) : (
+            <svg ref={svgRef} className="w-full" />
+          )}
         </div>
 
         <div className="w-96 flex flex-col gap-4 overflow-hidden">
@@ -593,13 +872,52 @@ export default function RelationshipExplorer() {
                 </div>
               </div>
             </>
+          ) : filteredNodes.length < 2 ? (
+            <div className="glass-card p-8 flex flex-col items-center justify-center h-full text-center">
+              <div className="text-5xl mb-4">�</div>
+              <h3 className="font-display text-lg text-white mb-2">
+                {dateFilteredDreams.length === 0 ? '暂无数据' : '节点不足'}
+              </h3>
+              <p className="text-sm text-slate-400 mb-4">
+                {dateFilteredDreams.length === 0
+                  ? '当前筛选条件下没有梦境数据'
+                  : '筛选结果太少，无法查看节点详情'}
+              </p>
+              {hasFilters && (
+                <button
+                  onClick={resetFilters}
+                  className="btn-primary px-4 py-2 text-sm flex items-center gap-2"
+                >
+                  <RotateCcw size={14} />
+                  重置筛选条件
+                </button>
+              )}
+            </div>
           ) : (
             <div className="glass-card p-8 flex flex-col items-center justify-center h-full text-center">
-              <div className="text-5xl mb-4">👆</div>
+              <div className="text-5xl mb-4">�👆</div>
               <h3 className="font-display text-lg text-white mb-2">选择一个节点</h3>
               <p className="text-sm text-slate-400">
                 点击网络图中的任意节点，查看相关梦境和关联节点
               </p>
+              {hasFilters && (
+                <div className="mt-4 p-3 rounded-lg bg-dreamscape/10 border border-dreamscape/30 w-full text-left">
+                  <div className="text-xs font-medium text-dreamscape mb-1 flex items-center gap-1">
+                    <Filter size={12} /> 当前筛选
+                  </div>
+                  <div className="text-xs text-slate-400 space-y-1">
+                    <div>梦境: {dateFilteredDreams.length} 条</div>
+                    <div>节点: {filteredNodes.length} 个</div>
+                    <div>关联: {filteredEdges.length} 条</div>
+                    {dateRange.from && dateRange.to && (
+                      <div>日期: {dateRange.from} ~ {dateRange.to}</div>
+                    )}
+                    {filters.minAssociation > 1 && (
+                      <div>最小关联: {filters.minAssociation} 次</div>
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="mt-6 space-y-3 w-full max-w-xs">
                 <div className="p-3 rounded-lg bg-white/5 text-left">
                   <div className="flex items-center gap-2 mb-1">
