@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDreamStore } from '@/store/dreamStore'
-import { Search, Star, Eye, MapPin, User, Tag, X, CalendarDays, BookmarkPlus, BookOpen, Edit2, Trash2, Check, ChevronDown } from 'lucide-react'
+import { Search, Star, Eye, MapPin, User, Tag, X, CalendarDays, BookmarkPlus, BookOpen, Edit2, Trash2, Check, ChevronDown, Download } from 'lucide-react'
 import type { Dream, SearchView, SearchViewFilters } from '@/types/dream'
 
 type SearchParams = SearchViewFilters
@@ -103,6 +103,18 @@ export default function SearchPage() {
     if (activeViewId === id) {
       setActiveViewId(null)
     }
+  }
+
+  const exportFilteredResults = () => {
+    if (results.length === 0) return
+    const blob = new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const date = new Date().toISOString().slice(0, 10)
+    a.download = `dreamscope_search_${date}_${results.length}条.json`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   const getViewDescription = (view: SearchView) => {
@@ -336,12 +348,22 @@ export default function SearchPage() {
                 ? `找到 ${results.length} 条匹配梦境`
                 : '没有匹配的梦境'}
             </span>
-            <button
-              onClick={clearAll}
-              className="text-xs text-slate-400 hover:text-white transition-colors flex items-center gap-1"
-            >
-              <X size={12} /> 清除筛选
-            </button>
+            <div className="flex items-center gap-3">
+              {results.length > 0 && (
+                <button
+                  onClick={exportFilteredResults}
+                  className="text-xs text-dreamscape hover:text-dreamscape/80 transition-colors flex items-center gap-1"
+                >
+                  <Download size={12} /> 导出搜索结果
+                </button>
+              )}
+              <button
+                onClick={clearAll}
+                className="text-xs text-slate-400 hover:text-white transition-colors flex items-center gap-1"
+              >
+                <X size={12} /> 清除筛选
+              </button>
+            </div>
           </div>
         )}
       </div>
