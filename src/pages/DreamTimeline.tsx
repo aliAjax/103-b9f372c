@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDreamStore } from '@/store/dreamStore'
-import { Clock, Star, Eye, ChevronDown, ChevronUp, Calendar, GripVertical } from 'lucide-react'
+import { Clock, Star, Eye, ChevronDown, ChevronUp, Calendar, GripVertical, Filter, X } from 'lucide-react'
 import type { Dream } from '@/types/dream'
 
 interface GroupedDreams {
@@ -61,10 +61,30 @@ export default function DreamTimeline() {
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set())
   const monthRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
   const [showQuickNav, setShowQuickNav] = useState(false)
+  const [emotionFilter, setEmotionFilter] = useState<'all' | 'low' | 'high'>('all')
+  const [clarityFilter, setClarityFilter] = useState<'all' | 'blurry' | 'clear'>('all')
+
+  const hasActiveFilter = emotionFilter !== 'all' || clarityFilter !== 'all'
+
+  const clearFilters = () => {
+    setEmotionFilter('all')
+    setClarityFilter('all')
+  }
+
+  const filteredDreams = useMemo(() => {
+    if (!hasActiveFilter) return dreams
+    return dreams.filter((d) => {
+      if (emotionFilter === 'low' && d.emotionScore > 2) return false
+      if (emotionFilter === 'high' && d.emotionScore < 4) return false
+      if (clarityFilter === 'blurry' && d.clarityScore > 2) return false
+      if (clarityFilter === 'clear' && d.clarityScore < 4) return false
+      return true
+    })
+  }, [dreams, emotionFilter, clarityFilter, hasActiveFilter])
 
   const groupedDreams = useMemo<GroupedDreams>(() => {
     const grouped: GroupedDreams = {}
-    const sorted = [...dreams].sort((a, b) => b.date.localeCompare(a.date))
+    const sorted = [...filteredDreams].sort((a, b) => b.date.localeCompare(a.date))
     
     sorted.forEach((dream) => {
       const [year, month, day] = dream.date.split('-')
@@ -75,7 +95,7 @@ export default function DreamTimeline() {
     })
     
     return grouped
-  }, [dreams])
+  }, [filteredDreams])
 
   const monthList = useMemo(() => {
     const months: { label: string; key: string; count: number }[] = []
@@ -200,190 +220,284 @@ export default function DreamTimeline() {
         </div>
       </div>
 
-      <div className="space-y-8">
-        {Object.entries(groupedDreams)
-          .sort(([a], [b]) => Number(b) - Number(a))
-          .map(([year, monthsData]) => (
-            <div key={year}>
-              {Object.entries(monthsData)
-                .sort(([a], [b]) => Number(b) - Number(a))
-                .map(([month, daysData]) => {
-                  const monthKey = `${year}-${month}`
-                  const dreamCount = Object.values(daysData).reduce((sum, arr) => sum + arr.length, 0)
-                  
-                  return (
-                    <div
-                      key={monthKey}
-                      ref={(el) => { monthRefs.current[monthKey] = el }}
-                      className="mb-8 scroll-mt-4"
-                    >
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-12 h-12 rounded-2xl bg-dreamscape/20 flex items-center justify-center border border-dreamscape/30">
-                          <Calendar size={20} className="text-dreamscape" />
-                        </div>
-                        <div>
-                          <h2 className="font-display text-xl text-white">
-                            {year}年 {monthNames[Number(month) - 1]}
-                          </h2>
-                          <p className="text-xs text-slate-500">
-                            共 {dreamCount} 条梦境 · {Object.keys(daysData).length} 天有记录
-                          </p>
-                        </div>
-                      </div>
+      <div className="mb-4 glass-card p-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5 text-xs text-slate-400 shrink-0">
+            <Filter size={14} className="text-dreamscape" />
+            <span>快速筛选</span>
+          </div>
 
-                      <div className="relative pl-6 ml-6 border-l border-dreamscape/30">
-                        {Object.entries(daysData)
-                          .sort(([a], [b]) => Number(b) - Number(a))
-                          .map(([day, dayDreams]) => {
-                            const dayKey = `${year}-${month}-${day}`
-                            const isExpanded = expandedDays.has(dayKey)
-                            const avgEmotion = dayDreams.reduce((sum, d) => sum + d.emotionScore, 0) / dayDreams.length
-                            
-                            return (
-                              <div key={dayKey} className="relative mb-4">
-                                <div className="absolute -left-[30px] top-4">
-                                  <div className={`w-4 h-4 rounded-full ${getEmotionColor(avgEmotion)} ring-4 ring-midnight`} />
-                                </div>
+          <div className="h-4 w-px bg-white/10" />
 
-                                <div
-                                  className={`glass-card glass-card-hover ${getEmotionBgColor(avgEmotion)} border ${getEmotionBorderColor(avgEmotion)} cursor-pointer transition-all`}
-                                  onClick={() => toggleDay(dayKey)}
-                                >
-                                  <div className="p-4 flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                      <div className="text-center min-w-[60px]">
-                                        <div className="font-display text-2xl text-white">{Number(day)}</div>
-                                        <div className="text-xs text-slate-500">{getWeekday(dayKey)}</div>
-                                      </div>
-                                      <div className="hidden sm:block">
-                                        <div className="text-sm text-slate-300">{formatDate(dayKey)}</div>
-                                        <div className="text-xs text-slate-500 flex items-center gap-2 mt-1">
-                                          <span className={`px-2 py-0.5 rounded-full ${getEmotionBgColor(avgEmotion)} text-xs`}>
-                                            {getEmotionLabel(avgEmotion)}
-                                          </span>
-                                          <span>{dayDreams.length} 条记录</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                      <div className="hidden sm:flex items-center gap-3 text-xs text-slate-400">
-                                        <span className="flex items-center gap-1">
-                                          <Star size={12} className="text-starlight" />
-                                          {avgEmotion.toFixed(1)}
-                                        </span>
-                                      </div>
-                                      {dayDreams.length > 1 && (
-                                        <div className="flex items-center gap-1 text-xs text-dreamscape">
-                                          {isExpanded ? (
-                                            <>收起 <ChevronUp size={14} /></>
-                                          ) : (
-                                            <>展开 <ChevronDown size={14} /></>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-slate-500 shrink-0">情绪</span>
+            <button
+              onClick={() => setEmotionFilter(emotionFilter === 'low' ? 'all' : 'low')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                emotionFilter === 'low'
+                  ? 'bg-red-500/20 text-red-300 border border-red-500/40'
+                  : 'bg-white/5 text-slate-400 border border-transparent hover:text-slate-200 hover:bg-white/10'
+              }`}
+            >
+              低情绪
+            </button>
+            <button
+              onClick={() => setEmotionFilter(emotionFilter === 'high' ? 'all' : 'high')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                emotionFilter === 'high'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                  : 'bg-white/5 text-slate-400 border border-transparent hover:text-slate-200 hover:bg-white/10'
+              }`}
+            >
+              高情绪
+            </button>
+          </div>
+
+          <div className="h-4 w-px bg-white/10" />
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-slate-500 shrink-0">清晰度</span>
+            <button
+              onClick={() => setClarityFilter(clarityFilter === 'blurry' ? 'all' : 'blurry')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                clarityFilter === 'blurry'
+                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                  : 'bg-white/5 text-slate-400 border border-transparent hover:text-slate-200 hover:bg-white/10'
+              }`}
+            >
+              模糊
+            </button>
+            <button
+              onClick={() => setClarityFilter(clarityFilter === 'clear' ? 'all' : 'clear')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                clarityFilter === 'clear'
+                  ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                  : 'bg-white/5 text-slate-400 border border-transparent hover:text-slate-200 hover:bg-white/10'
+              }`}
+            >
+              清晰
+            </button>
+          </div>
+
+          {hasActiveFilter && (
+            <>
+              <div className="h-4 w-px bg-white/10" />
+              <button
+                onClick={clearFilters}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+              >
+                <X size={12} />
+                清除筛选
+              </button>
+              <span className="text-xs text-slate-500">
+                匹配 {filteredDreams.length} / {dreams.length} 条
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {hasActiveFilter && filteredDreams.length === 0 ? (
+        <div className="glass-card p-12 text-center">
+          <div className="text-5xl mb-4">🔍</div>
+          <h2 className="font-display text-xl text-white mb-2">没有匹配的梦境</h2>
+          <p className="text-slate-400 text-sm mb-6">
+            当前筛选条件下未找到梦境记录，试试调整筛选条件
+          </p>
+          <button
+            onClick={clearFilters}
+            className="btn-primary inline-flex items-center gap-2"
+          >
+            <X size={16} />
+            清除筛选
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-8">
+          {Object.entries(groupedDreams)
+            .sort(([a], [b]) => Number(b) - Number(a))
+            .map(([year, monthsData]) => (
+              <div key={year}>
+                {Object.entries(monthsData)
+                  .sort(([a], [b]) => Number(b) - Number(a))
+                  .map(([month, daysData]) => {
+                    const monthKey = `${year}-${month}`
+                    const dreamCount = Object.values(daysData).reduce((sum, arr) => sum + arr.length, 0)
+                    
+                    return (
+                      <div
+                        key={monthKey}
+                        ref={(el) => { monthRefs.current[monthKey] = el }}
+                        className="mb-8 scroll-mt-4"
+                      >
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-12 h-12 rounded-2xl bg-dreamscape/20 flex items-center justify-center border border-dreamscape/30">
+                            <Calendar size={20} className="text-dreamscape" />
+                          </div>
+                          <div>
+                            <h2 className="font-display text-xl text-white">
+                              {year}年 {monthNames[Number(month) - 1]}
+                            </h2>
+                            <p className="text-xs text-slate-500">
+                              共 {dreamCount} 条梦境 · {Object.keys(daysData).length} 天有记录
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="relative pl-6 ml-6 border-l border-dreamscape/30">
+                          {Object.entries(daysData)
+                            .sort(([a], [b]) => Number(b) - Number(a))
+                            .map(([day, dayDreams]) => {
+                              const dayKey = `${year}-${month}-${day}`
+                              const isExpanded = expandedDays.has(dayKey)
+                              const avgEmotion = dayDreams.reduce((sum, d) => sum + d.emotionScore, 0) / dayDreams.length
+                              
+                              return (
+                                <div key={dayKey} className="relative mb-4">
+                                  <div className="absolute -left-[30px] top-4">
+                                    <div className={`w-4 h-4 rounded-full ${getEmotionColor(avgEmotion)} ring-4 ring-midnight`} />
                                   </div>
 
-                                  {dayDreams.length === 1 ? (
-                                    <div
-                                      className="px-4 pb-4"
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        navigate(`/dream/${dayDreams[0].id}`)
-                                      }}
-                                    >
-                                      <div className="glass-card p-3 border border-dreamscape/20 hover:border-dreamscape/40 transition-all">
-                                        <div className="flex items-start justify-between gap-3 mb-2">
-                                          <span className="text-xs text-slate-500 flex items-center gap-1">
-                                            <Clock size={10} />
-                                            {dayDreams[0].wakeTime}
-                                          </span>
-                                          <div className="flex items-center gap-2 text-xs text-slate-500">
-                                            <span className="flex items-center gap-1">
-                                              <Star size={10} className="text-starlight" />
-                                              {dayDreams[0].emotionScore}
-                                            </span>
-                                            <span className="flex items-center gap-1">
-                                              <Eye size={10} className="text-dreamscape" />
-                                              {dayDreams[0].clarityScore}
-                                            </span>
-                                          </div>
+                                  <div
+                                    className={`glass-card glass-card-hover ${getEmotionBgColor(avgEmotion)} border ${getEmotionBorderColor(avgEmotion)} cursor-pointer transition-all`}
+                                    onClick={() => toggleDay(dayKey)}
+                                  >
+                                    <div className="p-4 flex items-center justify-between">
+                                      <div className="flex items-center gap-3">
+                                        <div className="text-center min-w-[60px]">
+                                          <div className="font-display text-2xl text-white">{Number(day)}</div>
+                                          <div className="text-xs text-slate-500">{getWeekday(dayKey)}</div>
                                         </div>
-                                        <p className="text-sm text-slate-200 leading-relaxed line-clamp-2">
-                                          {dayDreams[0].text}
-                                        </p>
-                                        <div className="mt-2 text-right">
-                                          <span className="text-xs text-dreamscape">查看详情 →</span>
+                                        <div className="hidden sm:block">
+                                          <div className="text-sm text-slate-300">{formatDate(dayKey)}</div>
+                                          <div className="text-xs text-slate-500 flex items-center gap-2 mt-1">
+                                            <span className={`px-2 py-0.5 rounded-full ${getEmotionBgColor(avgEmotion)} text-xs`}>
+                                              {getEmotionLabel(avgEmotion)}
+                                            </span>
+                                            <span>{dayDreams.length} 条记录</span>
+                                          </div>
                                         </div>
                                       </div>
-                                    </div>
-                                  ) : isExpanded ? (
-                                    <div className="px-4 pb-4 space-y-2 animate-in slide-in-from-top-2">
-                                      {dayDreams.map((dream, index) => (
-                                        <div
-                                          key={dream.id}
-                                          className={`glass-card p-3 border ${getEmotionBorderColor(dream.emotionScore)} hover:border-dreamscape/40 transition-all cursor-pointer`}
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            navigate(`/dream/${dream.id}`)
-                                          }}
-                                        >
-                                          <div className="flex items-start justify-between gap-3 mb-2">
-                                            <div className="flex items-center gap-2">
-                                              <span className={`w-2 h-2 rounded-full ${getEmotionColor(dream.emotionScore)}`} />
-                                              <span className="text-xs text-slate-500 flex items-center gap-1">
-                                                <Clock size={10} />
-                                                {dream.wakeTime}
-                                              </span>
-                                              <span className="text-xs text-slate-600">#{index + 1}</span>
-                                            </div>
-                                            <div className="flex items-center gap-2 text-xs text-slate-500">
-                                              <span className="flex items-center gap-1">
-                                                <Star size={10} className="text-starlight" />
-                                                {dream.emotionScore}
-                                              </span>
-                                              <span className="flex items-center gap-1">
-                                                <Eye size={10} className="text-dreamscape" />
-                                                {dream.clarityScore}
-                                              </span>
-                                            </div>
-                                          </div>
-                                          <p className="text-sm text-slate-200 leading-relaxed line-clamp-2">
-                                            {dream.text}
-                                          </p>
+                                      <div className="flex items-center gap-3">
+                                        <div className="hidden sm:flex items-center gap-3 text-xs text-slate-400">
+                                          <span className="flex items-center gap-1">
+                                            <Star size={12} className="text-starlight" />
+                                            {avgEmotion.toFixed(1)}
+                                          </span>
                                         </div>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    <div className="px-4 pb-4">
-                                      <div className="flex -space-x-2">
-                                        {dayDreams.slice(0, 4).map((dream, i) => (
-                                          <div
-                                            key={dream.id}
-                                            className={`w-8 h-8 rounded-full ${getEmotionColor(dream.emotionScore)} border-2 border-midnight flex items-center justify-center text-xs text-white font-medium`}
-                                          >
-                                            {i + 1}
-                                          </div>
-                                        ))}
-                                        {dayDreams.length > 4 && (
-                                          <div className="w-8 h-8 rounded-full bg-slate-600 border-2 border-midnight flex items-center justify-center text-xs text-white font-medium">
-                                            +{dayDreams.length - 4}
+                                        {dayDreams.length > 1 && (
+                                          <div className="flex items-center gap-1 text-xs text-dreamscape">
+                                            {isExpanded ? (
+                                              <>收起 <ChevronUp size={14} /></>
+                                            ) : (
+                                              <>展开 <ChevronDown size={14} /></>
+                                            )}
                                           </div>
                                         )}
                                       </div>
                                     </div>
-                                  )}
+
+                                    {dayDreams.length === 1 ? (
+                                      <div
+                                        className="px-4 pb-4"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          navigate(`/dream/${dayDreams[0].id}`)
+                                        }}
+                                      >
+                                        <div className="glass-card p-3 border border-dreamscape/20 hover:border-dreamscape/40 transition-all">
+                                          <div className="flex items-start justify-between gap-3 mb-2">
+                                            <span className="text-xs text-slate-500 flex items-center gap-1">
+                                              <Clock size={10} />
+                                              {dayDreams[0].wakeTime}
+                                            </span>
+                                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                                              <span className="flex items-center gap-1">
+                                                <Star size={10} className="text-starlight" />
+                                                {dayDreams[0].emotionScore}
+                                              </span>
+                                              <span className="flex items-center gap-1">
+                                                <Eye size={10} className="text-dreamscape" />
+                                                {dayDreams[0].clarityScore}
+                                              </span>
+                                            </div>
+                                          </div>
+                                          <p className="text-sm text-slate-200 leading-relaxed line-clamp-2">
+                                            {dayDreams[0].text}
+                                          </p>
+                                          <div className="mt-2 text-right">
+                                            <span className="text-xs text-dreamscape">查看详情 →</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ) : isExpanded ? (
+                                      <div className="px-4 pb-4 space-y-2 animate-in slide-in-from-top-2">
+                                        {dayDreams.map((dream, index) => (
+                                          <div
+                                            key={dream.id}
+                                            className={`glass-card p-3 border ${getEmotionBorderColor(dream.emotionScore)} hover:border-dreamscape/40 transition-all cursor-pointer`}
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              navigate(`/dream/${dream.id}`)
+                                            }}
+                                          >
+                                            <div className="flex items-start justify-between gap-3 mb-2">
+                                              <div className="flex items-center gap-2">
+                                                <span className={`w-2 h-2 rounded-full ${getEmotionColor(dream.emotionScore)}`} />
+                                                <span className="text-xs text-slate-500 flex items-center gap-1">
+                                                  <Clock size={10} />
+                                                  {dream.wakeTime}
+                                                </span>
+                                                <span className="text-xs text-slate-600">#{index + 1}</span>
+                                              </div>
+                                              <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                <span className="flex items-center gap-1">
+                                                  <Star size={10} className="text-starlight" />
+                                                  {dream.emotionScore}
+                                                </span>
+                                                <span className="flex items-center gap-1">
+                                                  <Eye size={10} className="text-dreamscape" />
+                                                  {dream.clarityScore}
+                                                </span>
+                                              </div>
+                                            </div>
+                                            <p className="text-sm text-slate-200 leading-relaxed line-clamp-2">
+                                              {dream.text}
+                                            </p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <div className="px-4 pb-4">
+                                        <div className="flex -space-x-2">
+                                          {dayDreams.slice(0, 4).map((dream, i) => (
+                                            <div
+                                              key={dream.id}
+                                              className={`w-8 h-8 rounded-full ${getEmotionColor(dream.emotionScore)} border-2 border-midnight flex items-center justify-center text-xs text-white font-medium`}
+                                            >
+                                              {i + 1}
+                                            </div>
+                                          ))}
+                                          {dayDreams.length > 4 && (
+                                            <div className="w-8 h-8 rounded-full bg-slate-600 border-2 border-midnight flex items-center justify-center text-xs text-white font-medium">
+                                              +{dayDreams.length - 4}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            )
-                          })}
+                              )
+                            })}
+                        </div>
                       </div>
-                    </div>
-                  )
-                })}
-            </div>
-          ))}
-      </div>
+                    )
+                  })}
+              </div>
+            ))}
+        </div>
+      )}
     </div>
   )
 }
