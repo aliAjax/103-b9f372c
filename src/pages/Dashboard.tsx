@@ -22,7 +22,7 @@ function filterDreamsByRange(dreams: Dream[], range: TimeRange): Dream[] {
   const now = new Date()
   now.setHours(0, 0, 0, 0)
   const days = range === '7d' ? 7 : range === '30d' ? 30 : 90
-  const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+  const cutoff = new Date(now.getTime() - (days - 1) * 24 * 60 * 60 * 1000)
   const cutoffStr = cutoff.toISOString().split('T')[0]
   return dreams.filter((d) => d.date >= cutoffStr)
 }
