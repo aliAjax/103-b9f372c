@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useDreamStore } from '@/store/dreamStore'
-import { Tags, User, MapPin, Tag, Edit2, Check, X, Search } from 'lucide-react'
+import { Tags, User, MapPin, Tag, Edit2, Check, X, Search, ChevronDown, ChevronUp, Eye, AlertTriangle } from 'lucide-react'
 
 interface EditingState {
   type: 'people' | 'places' | 'keywords' | null
@@ -48,6 +49,37 @@ export default function TagManager() {
   }, [dreams])
   const [searchText, setSearchText] = useState('')
   const [editing, setEditing] = useState<EditingState>(emptyEditing)
+  const [lowFreqExpanded, setLowFreqExpanded] = useState(false)
+  const [lowFreqType, setLowFreqType] = useState<'people' | 'places' | 'keywords'>('people')
+  const navigate = useNavigate()
+
+  type LowFreqDream = { id: string; date: string; text: string }
+
+  interface LowFreqTag {
+    name: string
+    count: number
+    dreams: LowFreqDream[]
+  }
+
+  const lowFreqTags = useMemo(() => {
+    const buildLowFreq = (type: 'people' | 'places' | 'keywords') => {
+      const tags = allTags[type].filter((t) => t.count <= 2)
+      return tags.map((tag) => {
+        const relatedDreams = dreams
+          .filter((d) => d[type].includes(tag.name))
+          .map((d) => ({ id: d.id, date: d.date, text: d.text }))
+        return { name: tag.name, count: tag.count, dreams: relatedDreams } as LowFreqTag
+      })
+    }
+    return {
+      people: buildLowFreq('people'),
+      places: buildLowFreq('places'),
+      keywords: buildLowFreq('keywords'),
+    }
+  }, [allTags, dreams])
+
+  const lowFreqTotal =
+    lowFreqTags.people.length + lowFreqTags.places.length + lowFreqTags.keywords.length
 
   const totalCount = allTags.people.length + allTags.places.length + allTags.keywords.length
   const totalUsage =
@@ -175,7 +207,7 @@ export default function TagManager() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="glass-card p-4 text-center">
           <div className="text-3xl font-display text-dreamscape">{totalCount}</div>
           <div className="text-xs text-slate-400 mt-1">标签总数</div>
@@ -187,6 +219,20 @@ export default function TagManager() {
         <div className="glass-card p-4 text-center">
           <div className="text-3xl font-display text-starlight">{allTags.people.length}</div>
           <div className="text-xs text-slate-400 mt-1">人物标签</div>
+        </div>
+        <div
+          className={`glass-card p-4 text-center cursor-pointer transition-all ${
+            lowFreqTotal > 0
+              ? 'hover:bg-white/10 border border-amber-500/30'
+              : 'opacity-50'
+          }`}
+          onClick={() => lowFreqTotal > 0 && setLowFreqExpanded(!lowFreqExpanded)}
+        >
+          <div className="text-3xl font-display text-amber-400">{lowFreqTotal}</div>
+          <div className="text-xs text-slate-400 mt-1 flex items-center justify-center gap-1">
+            <AlertTriangle size={12} />
+            低频标签
+          </div>
         </div>
       </div>
 
@@ -210,6 +256,98 @@ export default function TagManager() {
           )}
         </div>
       </div>
+
+      {lowFreqTotal > 0 && (
+        <div className="glass-card mb-6 overflow-hidden border border-amber-500/20">
+          <button
+            className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors"
+            onClick={() => setLowFreqExpanded(!lowFreqExpanded)}
+          >
+            <div className="flex items-center gap-3">
+              <AlertTriangle size={18} className="text-amber-400" />
+              <span className="font-display text-base text-white">低频标签</span>
+              <span className="text-xs text-slate-400">
+                出现 1-2 次的标签，点击查看相关梦境
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-amber-400 font-medium">{lowFreqTotal}</span>
+              {lowFreqExpanded ? (
+                <ChevronUp size={18} className="text-slate-400" />
+              ) : (
+                <ChevronDown size={18} className="text-slate-400" />
+              )}
+            </div>
+          </button>
+
+          {lowFreqExpanded && (
+            <div className="px-4 pb-4">
+              <div className="flex gap-2 mb-4">
+                {([
+                  { key: 'people' as const, label: '人物', icon: User, color: 'text-rose-400', count: lowFreqTags.people.length },
+                  { key: 'places' as const, label: '地点', icon: MapPin, color: 'text-emerald-400', count: lowFreqTags.places.length },
+                  { key: 'keywords' as const, label: '关键词', icon: Tag, color: 'text-amber-400', count: lowFreqTags.keywords.length },
+                ]).map(({ key, label, icon: Icon, color, count }) => (
+                  <button
+                    key={key}
+                    onClick={() => setLowFreqType(key)}
+                    className={`px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+                      lowFreqType === key
+                        ? 'bg-white/10 text-white border border-white/20'
+                        : 'bg-white/5 text-slate-500 border border-transparent hover:text-slate-300'
+                    }`}
+                  >
+                    <Icon size={14} className={color} />
+                    {label}
+                    {count > 0 && (
+                      <span className="text-[10px] opacity-60">({count})</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {lowFreqTags[lowFreqType].length === 0 ? (
+                <div className="text-center py-8 text-slate-500 text-sm">
+                  该类别没有低频标签
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {lowFreqTags[lowFreqType].map((tag) => (
+                    <div
+                      key={tag.name}
+                      className="p-3 rounded-lg bg-white/5 hover:bg-white/8 transition-colors"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-slate-200">{tag.name}</span>
+                          <span className="text-[10px] text-amber-400/80 bg-amber-400/10 px-1.5 py-0.5 rounded">
+                            {tag.count} 次
+                          </span>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        {tag.dreams.map((dream) => (
+                          <div
+                            key={dream.id}
+                            onClick={() => navigate(`/dream/${dream.id}`)}
+                            className="flex items-center gap-2 p-2 rounded-md bg-white/5 hover:bg-white/10 cursor-pointer transition-colors group"
+                          >
+                            <span className="text-xs text-slate-400 shrink-0">{dream.date}</span>
+                            <p className="text-xs text-slate-300 line-clamp-1 flex-1 group-hover:text-white transition-colors">
+                              {dream.text}
+                            </p>
+                            <Eye size={12} className="text-slate-500 group-hover:text-dreamscape transition-colors shrink-0" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <TagSection
