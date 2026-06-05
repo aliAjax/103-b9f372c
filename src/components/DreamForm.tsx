@@ -1,12 +1,43 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useDreamStore } from '@/store/dreamStore'
 import TagInput from './TagInput'
-import { Star, Eye, Save } from 'lucide-react'
+import { Star, Eye, Save, FileText, Trash2 } from 'lucide-react'
+
+const DRAFT_KEY = 'dreamscope_draft'
+
+interface DraftData {
+  text: string
+  date: string
+  wakeTime: string
+  emotionScore: number
+  clarityScore: number
+  people: string[]
+  places: string[]
+  keywords: string[]
+}
+
+function loadDraft(): DraftData | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+function saveDraftData(draft: DraftData) {
+  localStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
+}
+
+function clearDraft() {
+  localStorage.removeItem(DRAFT_KEY)
+}
 
 export default function DreamForm() {
   const addDream = useDreamStore((s) => s.addDream)
   const getRecentTags = useDreamStore((s) => s.getRecentTags)
 
+  const [pendingDraft, setPendingDraft] = useState<DraftData | null>(null)
   const [text, setText] = useState('')
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
   const [wakeTime, setWakeTime] = useState('07:00')
@@ -16,6 +47,49 @@ export default function DreamForm() {
   const [places, setPlaces] = useState<string[]>([])
   const [keywords, setKeywords] = useState<string[]>([])
   const [saved, setSaved] = useState(false)
+
+  const draftResolvedRef = useRef(false)
+
+  useEffect(() => {
+    const draft = loadDraft()
+    if (draft) {
+      setPendingDraft(draft)
+    } else {
+      draftResolvedRef.current = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!draftResolvedRef.current) return
+    if (!text.trim()) {
+      clearDraft()
+      return
+    }
+    const timer = setTimeout(() => {
+      saveDraftData({ text, date, wakeTime, emotionScore, clarityScore, people, places, keywords })
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [text, date, wakeTime, emotionScore, clarityScore, people, places, keywords])
+
+  function handleRestoreDraft() {
+    if (!pendingDraft) return
+    setText(pendingDraft.text)
+    setDate(pendingDraft.date)
+    setWakeTime(pendingDraft.wakeTime)
+    setEmotionScore(pendingDraft.emotionScore)
+    setClarityScore(pendingDraft.clarityScore)
+    setPeople(pendingDraft.people)
+    setPlaces(pendingDraft.places)
+    setKeywords(pendingDraft.keywords)
+    setPendingDraft(null)
+    draftResolvedRef.current = true
+  }
+
+  function handleDiscardDraft() {
+    clearDraft()
+    setPendingDraft(null)
+    draftResolvedRef.current = true
+  }
 
   const emotionLabels = ['', '很糟糕', '不太好', '一般', '还不错', '很开心']
   const clarityLabels = ['', '很模糊', '较模糊', '一般', '较清晰', '很清晰']
@@ -38,12 +112,45 @@ export default function DreamForm() {
     setKeywords([])
     setEmotionScore(3)
     setClarityScore(3)
+    clearDraft()
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
+      {pendingDraft && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="glass-card p-6 max-w-sm mx-4 text-center space-y-4">
+            <div className="flex justify-center">
+              <FileText size={40} className="text-starlight" />
+            </div>
+            <h3 className="font-display text-xl text-white">发现未保存的草稿</h3>
+            <p className="text-slate-400 text-sm">
+              你之前有一份未保存的梦境记录，是否继续编辑？
+            </p>
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleDiscardDraft}
+                className="flex-1 px-4 py-2.5 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700/50 transition-colors text-sm flex items-center justify-center gap-2"
+              >
+                <Trash2 size={14} />
+                丢弃草稿
+              </button>
+              <button
+                type="button"
+                onClick={handleRestoreDraft}
+                className="flex-1 btn-primary text-sm flex items-center justify-center gap-2"
+              >
+                <FileText size={14} />
+                继续编辑
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <h1 className="font-display text-3xl text-white mb-2">记录梦境</h1>
       <p className="text-slate-400 text-sm mb-8">把梦的碎片留在这里，让它们汇聚成星空</p>
 
