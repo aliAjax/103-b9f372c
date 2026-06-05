@@ -17,13 +17,20 @@ const TIME_RANGE_OPTIONS: { key: TimeRange; label: string }[] = [
   { key: 'all', label: '全部' },
 ]
 
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 function filterDreamsByRange(dreams: Dream[], range: TimeRange): Dream[] {
   if (range === 'all') return dreams
   const now = new Date()
   now.setHours(0, 0, 0, 0)
   const days = range === '7d' ? 7 : range === '30d' ? 30 : 90
   const cutoff = new Date(now.getTime() - (days - 1) * 24 * 60 * 60 * 1000)
-  const cutoffStr = cutoff.toISOString().split('T')[0]
+  const cutoffStr = formatLocalDate(cutoff)
   return dreams.filter((d) => d.date >= cutoffStr)
 }
 
