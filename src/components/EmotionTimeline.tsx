@@ -1,13 +1,16 @@
 import { useEffect, useRef } from 'react'
 import * as echarts from 'echarts'
-import { useDreamStore } from '@/store/dreamStore'
+import type { Dream } from '@/types/dream'
 
-export default function EmotionTimeline() {
+interface Props {
+  dreams: Dream[]
+}
+
+export default function EmotionTimeline({ dreams }: Props) {
   const chartRef = useRef<HTMLDivElement>(null)
-  const dreams = useDreamStore((s) => s.dreams)
 
   useEffect(() => {
-    if (!chartRef.current) return
+    if (!chartRef.current || dreams.length === 0) return
     const chart = echarts.init(chartRef.current, 'dark')
 
     const sorted = [...dreams].sort((a, b) => a.date.localeCompare(b.date))
@@ -98,7 +101,7 @@ export default function EmotionTimeline() {
   if (dreams.length === 0) {
     return (
       <div className="glass-card p-6 flex items-center justify-center h-64 text-slate-500 text-sm">
-        记录梦境后，情绪时间线将在此展示
+        当前时间范围内暂无梦境记录
       </div>
     )
   }

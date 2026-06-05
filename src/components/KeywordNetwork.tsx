@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import * as d3 from 'd3'
 import { useDreamStore } from '@/store/dreamStore'
-import type { CooccurrenceNode, CooccurrenceEdge } from '@/types/dream'
+import type { Dream, CooccurrenceNode, CooccurrenceEdge } from '@/types/dream'
 
 interface NetworkNode extends CooccurrenceNode, d3.SimulationNodeDatum {}
 
@@ -10,9 +10,12 @@ interface SimulationNode extends NetworkNode {
   fy?: number | null
 }
 
-export default function KeywordNetwork() {
+interface Props {
+  dreams: Dream[]
+}
+
+export default function KeywordNetwork({ dreams }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
-  const dreams = useDreamStore((s) => s.dreams)
   const selectedKeyword = useDreamStore((s) => s.selectedKeyword)
   const selectKeyword = useDreamStore((s) => s.selectKeyword)
 
@@ -172,7 +175,7 @@ export default function KeywordNetwork() {
   if (dreams.length === 0) {
     return (
       <div className="glass-card p-6 flex items-center justify-center h-80 text-slate-500 text-sm">
-        记录梦境后，关键词共现网络将在此展示
+        当前时间范围内暂无梦境记录
       </div>
     )
   }

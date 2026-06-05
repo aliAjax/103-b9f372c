@@ -1,13 +1,16 @@
 import { useEffect, useRef } from 'react'
 import * as echarts from 'echarts'
-import { useDreamStore } from '@/store/dreamStore'
+import type { Dream } from '@/types/dream'
 
-export default function PeopleFrequency() {
+interface Props {
+  dreams: Dream[]
+}
+
+export default function PeopleFrequency({ dreams }: Props) {
   const chartRef = useRef<HTMLDivElement>(null)
-  const dreams = useDreamStore((s) => s.dreams)
 
   useEffect(() => {
-    if (!chartRef.current) return
+    if (!chartRef.current || dreams.length === 0) return
     const chart = echarts.init(chartRef.current, 'dark')
 
     const peopleMap = new Map<string, number>()
@@ -20,6 +23,11 @@ export default function PeopleFrequency() {
     const sorted = Array.from(peopleMap.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 15)
+
+    if (sorted.length === 0) {
+      chart.dispose()
+      return
+    }
 
     const names = sorted.map(([name]) => name)
     const values = sorted.map(([, count]) => count)
@@ -78,15 +86,15 @@ export default function PeopleFrequency() {
     }
   }, [dreams])
 
-  if (dreams.length === 0) {
+  const peopleCount = new Set(dreams.flatMap((d) => d.people)).size
+
+  if (peopleCount === 0) {
     return (
       <div className="glass-card p-6 flex items-center justify-center h-64 text-slate-500 text-sm">
-        记录梦境后，人物出现频率图将在此展示
+        当前时间范围内暂无人物记录
       </div>
     )
   }
-
-  const peopleCount = new Set(dreams.flatMap((d) => d.people)).size
 
   return (
     <div className="glass-card glass-card-hover p-4">
