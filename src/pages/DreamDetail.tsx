@@ -1,6 +1,84 @@
+import { useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDreamStore } from '@/store/dreamStore'
-import { ArrowLeft, Trash2, Edit3, Star, Eye, MapPin, User, Tag, Clock, CalendarDays } from 'lucide-react'
+import { ArrowLeft, Trash2, Edit3, Star, Eye, MapPin, User, Tag, Clock, CalendarDays, Link2 } from 'lucide-react'
+import type { Dream, NodeType } from '@/types/dream'
+
+interface MatchedTag {
+  name: string
+  type: NodeType
+}
+
+interface SimilarDream {
+  dream: Dream
+  score: number
+  matchedTags: MatchedTag[]
+}
+
+function computeSimilarDreams(current: Dream, allDreams: Dream[], limit = 5): SimilarDream[] {
+  const currentTags = new Set([
+    ...current.people.map((p) => `person:${p}`),
+    ...current.places.map((p) => `place:${p}`),
+    ...current.keywords.map((k) => `keyword:${k}`),
+  ])
+
+  if (currentTags.size === 0) return []
+
+  const results: SimilarDream[] = []
+
+  for (const dream of allDreams) {
+    if (dream.id === current.id) continue
+
+    const matchedTags: MatchedTag[] = []
+    let overlap = 0
+
+    for (const p of dream.people) {
+      if (currentTags.has(`person:${p}`)) {
+        overlap++
+        matchedTags.push({ name: p, type: 'person' })
+      }
+    }
+    for (const p of dream.places) {
+      if (currentTags.has(`place:${p}`)) {
+        overlap++
+        matchedTags.push({ name: p, type: 'place' })
+      }
+    }
+    for (const k of dream.keywords) {
+      if (currentTags.has(`keyword:${k}`)) {
+        overlap++
+        matchedTags.push({ name: k, type: 'keyword' })
+      }
+    }
+
+    if (overlap === 0) continue
+
+    const otherTags = new Set([
+      ...dream.people.map((p) => `person:${p}`),
+      ...dream.places.map((p) => `place:${p}`),
+      ...dream.keywords.map((k) => `keyword:${k}`),
+    ])
+    const union = new Set([...currentTags, ...otherTags]).size
+    const score = union > 0 ? overlap / union : 0
+
+    results.push({ dream, score, matchedTags })
+  }
+
+  results.sort((a, b) => b.score - a.score || b.matchedTags.length - a.matchedTags.length)
+  return results.slice(0, limit)
+}
+
+const TAG_STYLE: Record<NodeType, string> = {
+  person: 'bg-pink-500/20 text-pink-400',
+  place: 'bg-green-500/20 text-green-400',
+  keyword: 'bg-purple-500/20 text-purple-400',
+}
+
+const TAG_ICON: Record<NodeType, typeof User> = {
+  person: User,
+  place: MapPin,
+  keyword: Tag,
+}
 
 export default function DreamDetail() {
   const { id } = useParams<{ id: string }>()
@@ -9,6 +87,11 @@ export default function DreamDetail() {
   const deleteDream = useDreamStore((s) => s.deleteDream)
 
   const dream = dreams.find((d) => d.id === id)
+
+  const similarDreams = useMemo(
+    () => (dream ? computeSimilarDreams(dream, dreams) : []),
+    [dream, dreams]
+  )
 
   if (!dream) {
     return (
@@ -143,6 +226,54 @@ export default function DreamDetail() {
           </div>
         )}
       </div>
+
+      {similarDreams.length > 0 && (
+        <div className="glass-card p-6 mt-6">
+          <h2 className="font-display text-lg text-white flex items-center gap-2 mb-4">
+            <Link2 size={18} className="text-dreamscape" />
+            相似梦境
+          </h2>
+          <div className="space-y-3">
+            {similarDreams.map(({ dream: sd, score, matchedTags }) => (
+              <div
+                key={sd.id}
+                onClick={() => navigate(`/dream/${sd.id}`)}
+                className="p-4 rounded-xl bg-white/5 border border-white/5 hover:border-dreamscape/40 hover:bg-white/[0.07] cursor-pointer transition-all"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2 text-xs text-slate-400">
+                    <CalendarDays size={12} className="text-dreamscape" />
+                    {sd.date}
+                    <span className="text-dreamscape/40">|</span>
+                    <Clock size={12} className="text-dreamscape" />
+                    {sd.wakeTime}
+                  </div>
+                  <span className="text-[10px] text-dreamscape/70 font-medium">
+                    相似度 {Math.round(score * 100)}%
+                  </span>
+                </div>
+                <p className="text-sm text-slate-300 leading-relaxed line-clamp-2 mb-3">
+                  {sd.text}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {matchedTags.map((tag) => {
+                    const Icon = TAG_ICON[tag.type]
+                    return (
+                      <span
+                        key={`${tag.type}:${tag.name}`}
+                        className={`px-2 py-0.5 rounded-full text-[10px] flex items-center gap-1 ${TAG_STYLE[tag.type]}`}
+                      >
+                        <Icon size={10} />
+                        {tag.name}
+                      </span>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
