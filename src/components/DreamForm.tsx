@@ -59,9 +59,11 @@ export default function DreamForm() {
     }
   }, [])
 
+  const hasContent = !!text.trim() || people.length > 0 || places.length > 0 || keywords.length > 0
+
   useEffect(() => {
     if (!draftResolvedRef.current) return
-    if (!text.trim()) {
+    if (!hasContent) {
       clearDraft()
       return
     }
@@ -69,7 +71,7 @@ export default function DreamForm() {
       saveDraftData({ text, date, wakeTime, emotionScore, clarityScore, people, places, keywords })
     }, 500)
     return () => clearTimeout(timer)
-  }, [text, date, wakeTime, emotionScore, clarityScore, people, places, keywords])
+  }, [hasContent, text, date, wakeTime, emotionScore, clarityScore, people, places, keywords])
 
   function handleRestoreDraft() {
     if (!pendingDraft) return
