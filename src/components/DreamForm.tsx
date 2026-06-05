@@ -59,7 +59,17 @@ export default function DreamForm() {
     }
   }, [])
 
-  const hasContent = !!text.trim() || people.length > 0 || places.length > 0 || keywords.length > 0
+  const initDateRef = useRef(new Date().toISOString().split('T')[0])
+
+  const hasContent =
+    !!text.trim() ||
+    people.length > 0 ||
+    places.length > 0 ||
+    keywords.length > 0 ||
+    date !== initDateRef.current ||
+    wakeTime !== '07:00' ||
+    emotionScore !== 3 ||
+    clarityScore !== 3
 
   useEffect(() => {
     if (!draftResolvedRef.current) return
