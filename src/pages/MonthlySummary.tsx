@@ -84,6 +84,21 @@ export default function MonthlySummary() {
     return Array.from(months).sort().reverse()
   }, [dreams])
 
+  const availableYears = useMemo(() => {
+    const years = new Set<number>()
+    dreams.forEach((d) => {
+      years.add(Number(d.date.split('-')[0]))
+    })
+    years.add(now.getFullYear())
+    return Array.from(years).sort((a, b) => b - a)
+  }, [dreams])
+
+  const yearOptions = useMemo(() => {
+    const opts = new Set(availableYears)
+    opts.add(selectedYear)
+    return Array.from(opts).sort((a, b) => b - a)
+  }, [availableYears, selectedYear])
+
   const monthDreams = useMemo(() => {
     const { start, end } = getMonthRange(selectedYear, selectedMonth)
     return dreams.filter((d) => d.date >= start && d.date <= end)
@@ -130,8 +145,8 @@ export default function MonthlySummary() {
       </div>
 
       <div className="glass-card p-5 mb-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-3">
             <button
               onClick={handlePrevMonth}
               className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
@@ -139,13 +154,28 @@ export default function MonthlySummary() {
               <ChevronLeft size={20} />
             </button>
 
-            <div className="text-center">
-              <div className="font-display text-2xl text-white">
-                {selectedYear}年 {monthNames[selectedMonth - 1]}
-              </div>
-              <div className="text-xs text-slate-500 mt-1">
-                {hasDataThisMonth ? `共 ${stats.totalDreams} 条梦境` : '本月暂无记录'}
-              </div>
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                className="glow-input px-3 py-2 text-sm font-display text-white bg-slate-900/50 appearance-none cursor-pointer pr-8"
+                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
+              >
+                {yearOptions.map((y) => (
+                  <option key={y} value={y}>{y}年</option>
+                ))}
+              </select>
+
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                className="glow-input px-3 py-2 text-sm font-display text-white bg-slate-900/50 appearance-none cursor-pointer pr-8"
+                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
+              >
+                {monthNames.map((name, idx) => (
+                  <option key={idx + 1} value={idx + 1}>{name}</option>
+                ))}
+              </select>
             </div>
 
             <button
