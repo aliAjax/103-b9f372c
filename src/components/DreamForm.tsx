@@ -49,6 +49,7 @@ export default function DreamForm() {
   const [saved, setSaved] = useState(false)
 
   const draftResolvedRef = useRef(false)
+  const justSavedRef = useRef(false)
 
   useEffect(() => {
     const draft = loadDraft()
@@ -73,6 +74,11 @@ export default function DreamForm() {
 
   useEffect(() => {
     if (!draftResolvedRef.current) return
+    if (justSavedRef.current) {
+      justSavedRef.current = false
+      clearDraft()
+      return
+    }
     if (!hasContent) {
       clearDraft()
       return
@@ -118,6 +124,7 @@ export default function DreamForm() {
       places,
       keywords,
     })
+    justSavedRef.current = true
     setText('')
     setPeople([])
     setPlaces([])
