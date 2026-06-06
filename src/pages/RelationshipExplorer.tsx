@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import * as d3 from 'd3'
 import { useNavigate } from 'react-router-dom'
 import { useDreamStore } from '@/store/dreamStore'
-import { Network, Users, MapPin, Tag, X, Star, Eye, Edit3, Sparkles, Calendar, Filter, SlidersHorizontal, RotateCcw } from 'lucide-react'
+import { Network, Users, MapPin, Tag, X, Star, Eye, Edit3, Sparkles, Calendar, Filter, SlidersHorizontal, RotateCcw, Search, Crosshair, ZoomIn } from 'lucide-react'
 import type { Dream, RelationshipNode, RelationshipEdge, NodeType, NodeNeighbor } from '@/types/dream'
 import { seedDemoData } from '@/utils/seedData'
 
@@ -188,7 +188,12 @@ export default function RelationshipExplorer() {
   const dreams = useDreamStore((s) => s.dreams)
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null)
+  const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null)
+  const nodePositionsRef = useRef<Map<string, { x: number; y: number; fx?: number | null; fy?: number | null }>>(new Map())
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [focusMode, setFocusMode] = useState(true)
   const [typeFilter, setTypeFilter] = useState<Set<NodeType>>(
     new Set(['person', 'place', 'keyword'])
   )
@@ -249,7 +254,27 @@ export default function RelationshipExplorer() {
     [strengthFilteredEdges, filteredNodeIds]
   )
 
-  const hasFilters = filters.timeRange !== 'all' || filters.minAssociation > 1
+  const searchMatchedNodeIds = useMemo(() => {
+    if (!searchQuery.trim()) return new Set<string>()
+    const query = searchQuery.toLowerCase().trim()
+    return new Set(
+      filteredNodes
+        .filter((n) => n.id.toLowerCase().includes(query))
+        .map((n) => n.id)
+    )
+  }, [searchQuery, filteredNodes])
+
+  const focusNeighborIds = useMemo(() => {
+    if (!selectedNode || !focusMode) return new Set<string>()
+    const neighborIds = new Set<string>([selectedNode])
+    filteredEdges.forEach((e) => {
+      if (e.source === selectedNode) neighborIds.add(e.target)
+      if (e.target === selectedNode) neighborIds.add(e.source)
+    })
+    return neighborIds
+  }, [selectedNode, focusMode, filteredEdges])
+
+  const hasFilters = filters.timeRange !== 'all' || filters.minAssociation > 1 || searchQuery.trim() !== ''
 
   const relatedDreams = useMemo(
     () => (selectedNode ? getRelatedDreams(dateFilteredDreams, selectedNode) : []),
@@ -276,7 +301,36 @@ export default function RelationshipExplorer() {
     })
     setTypeFilter(new Set(['person', 'place', 'keyword']))
     setSelectedNode(null)
+    setSearchQuery('')
   }, [])
+
+  const focusOnNode = useCallback((nodeId: string) => {
+    if (!svgRef.current || !zoomRef.current || !gRef.current) return
+
+    const node = nodePositionsRef.current.get(nodeId)
+    if (!node) return
+
+    const width = svgRef.current.parentElement!.clientWidth
+    const height = containerRef.current
+      ? containerRef.current.clientHeight - 120
+      : 600
+
+    const scale = 1.8
+    const x = width / 2 - node.x * scale
+    const y = height / 2 - node.y * scale
+
+    const transform = d3.zoomIdentity.translate(x, y).scale(scale)
+
+    d3.select(svgRef.current)
+      .transition()
+      .duration(750)
+      .call(zoomRef.current.transform as any, transform)
+  }, [])
+
+  const handleSearchSelect = useCallback((nodeId: string) => {
+    setSelectedNode(nodeId)
+    setTimeout(() => focusOnNode(nodeId), 50)
+  }, [focusOnNode])
 
   const updateFilter = useCallback(<K extends keyof FilterState>(key: K, value: FilterState[K]) => {
     setFilters((prev) => ({ ...prev, [key]: value }))
@@ -285,9 +339,15 @@ export default function RelationshipExplorer() {
 
   const handleNodeClick = useCallback(
     (nodeId: string) => {
-      setSelectedNode((prev) => (prev === nodeId ? null : nodeId))
+      setSelectedNode((prev) => {
+        const next = prev === nodeId ? null : nodeId
+        if (next) {
+          setTimeout(() => focusOnNode(nodeId), 50)
+        }
+        return next
+      })
     },
-    []
+    [focusOnNode]
   )
 
   const toggleTypeFilter = useCallback((type: NodeType) => {
@@ -335,10 +395,21 @@ export default function RelationshipExplorer() {
       return
     }
 
+    const simNodes: SimulationNode[] = filteredNodes.map((n) => {
+      const saved = nodePositionsRef.current.get(n.id)
+      return {
+        ...n,
+        x: saved?.x,
+        y: saved?.y,
+        fx: saved?.fx ?? undefined,
+        fy: saved?.fy ?? undefined,
+      }
+    })
+
     const simEdges = filteredEdges.map((e) => ({ ...e, source: e.source as string, target: e.target as string }))
 
     const simulation = d3
-      .forceSimulation(filteredNodes as SimulationNode[])
+      .forceSimulation(simNodes)
       .force(
         'link',
         d3
@@ -354,6 +425,7 @@ export default function RelationshipExplorer() {
     simulationRef.current = simulation
 
     const g = svg.append('g')
+    gRef.current = g
 
     const zoom = d3
       .zoom<SVGSVGElement, unknown>()
@@ -361,9 +433,27 @@ export default function RelationshipExplorer() {
       .on('zoom', (event) => {
         g.attr('transform', event.transform)
       })
+    zoomRef.current = zoom
     svg.call(zoom)
 
     const defs = g.append('defs')
+
+    defs
+      .append('filter')
+      .attr('id', 'search-glow')
+      .attr('x', '-50%')
+      .attr('y', '-50%')
+      .attr('width', '200%')
+      .attr('height', '200%')
+      .append('feGaussianBlur')
+      .attr('stdDeviation', '4')
+      .attr('result', 'coloredBlur')
+
+    const searchGlowMerge = defs
+      .select('#search-glow')
+      .append('feMerge')
+    searchGlowMerge.append('feMergeNode').attr('in', 'coloredBlur')
+    searchGlowMerge.append('feMergeNode').attr('in', 'SourceGraphic')
 
     filteredEdges.forEach((edge, i) => {
       const gradient = defs
@@ -391,13 +481,12 @@ export default function RelationshipExplorer() {
       .data(simEdges)
       .join('line')
       .attr('stroke', (_d, i) => `url(#gradient-${i})`)
-      .attr('stroke-opacity', 0.4)
       .attr('stroke-width', (d) => Math.min(d.weight * 1.5, 5))
 
     const node = g
       .append('g')
       .selectAll('g')
-      .data(filteredNodes)
+      .data(simNodes)
       .join('g')
       .style('cursor', 'pointer')
       .on('click', (_event, d) => handleNodeClick(d.id))
@@ -417,29 +506,18 @@ export default function RelationshipExplorer() {
             if (!event.active) simulation.alphaTarget(0)
             d.fx = null
             d.fy = null
+            nodePositionsRef.current.set(d.id, { x: d.x!, y: d.y!, fx: null, fy: null })
           })
       )
 
     node
       .append('circle')
+      .attr('class', 'node-circle')
       .attr('r', (d) => Math.min(10 + d.count * 2.5, 30))
-      .attr('fill', (d) =>
-        d.id === selectedNode ? '#f0c040' : TYPE_COLORS[d.type]
-      )
-      .attr('fill-opacity', (d) => (d.id === selectedNode ? 0.9 : 0.7))
-      .attr('stroke', (d) =>
-        d.id === selectedNode ? '#f0c040' : TYPE_COLORS[d.type]
-      )
-      .attr('stroke-width', (d) => (d.id === selectedNode ? 3 : 1.5))
-      .attr('stroke-opacity', 0.8)
-      .style('filter', (d) =>
-        d.id === selectedNode
-          ? 'drop-shadow(0 0 12px rgba(240, 192, 64, 0.7))'
-          : `drop-shadow(0 0 6px ${TYPE_COLORS[d.type]}66)`
-      )
 
     node
       .append('text')
+      .attr('class', 'node-icon')
       .text((d) => TYPE_ICONS[d.type])
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'central')
@@ -448,13 +526,78 @@ export default function RelationshipExplorer() {
 
     node
       .append('text')
+      .attr('class', 'node-label')
       .text((d) => d.id)
       .attr('dy', (d) => Math.min(10 + d.count * 2.5, 30) + 16)
       .attr('text-anchor', 'middle')
-      .attr('fill', (d) => (d.id === selectedNode ? '#f0c040' : '#cbd5e1'))
       .attr('font-size', '11px')
       .attr('font-weight', '500')
       .style('pointer-events', 'none')
+
+    const updateVisualState = () => {
+      link.attr('stroke-opacity', (d: any) => {
+        const src = d.source.id || d.source
+        const tgt = d.target.id || d.target
+        if (selectedNode && focusMode) {
+          if (src === selectedNode || tgt === selectedNode) return 0.8
+          return 0.08
+        }
+        return 0.4
+      })
+
+      node.selectAll<SVGCircleElement, SimulationNode>('.node-circle')
+        .attr('fill', (d) => {
+          if (d.id === selectedNode) return '#f0c040'
+          if (searchMatchedNodeIds.has(d.id)) return '#fbbf24'
+          return TYPE_COLORS[d.type]
+        })
+        .attr('fill-opacity', (d) => {
+          if (d.id === selectedNode) return 0.95
+          if (searchMatchedNodeIds.has(d.id)) return 0.9
+          if (selectedNode && focusMode && !focusNeighborIds.has(d.id)) return 0.15
+          return 0.7
+        })
+        .attr('stroke', (d) => {
+          if (d.id === selectedNode) return '#f0c040'
+          if (searchMatchedNodeIds.has(d.id)) return '#fbbf24'
+          return TYPE_COLORS[d.type]
+        })
+        .attr('stroke-width', (d) => {
+          if (d.id === selectedNode) return 3
+          if (searchMatchedNodeIds.has(d.id)) return 2.5
+          return 1.5
+        })
+        .attr('stroke-opacity', (d) => {
+          if (selectedNode && focusMode && !focusNeighborIds.has(d.id) && d.id !== selectedNode) return 0.3
+          return 0.8
+        })
+        .style('filter', (d) => {
+          if (d.id === selectedNode) return 'drop-shadow(0 0 12px rgba(240, 192, 64, 0.7))'
+          if (searchMatchedNodeIds.has(d.id)) return 'drop-shadow(0 0 10px rgba(251, 191, 36, 0.8))'
+          if (selectedNode && focusMode && !focusNeighborIds.has(d.id)) return 'none'
+          return `drop-shadow(0 0 6px ${TYPE_COLORS[d.type]}66)`
+        })
+
+      node.selectAll<SVGTextElement, SimulationNode>('.node-label')
+        .attr('fill', (d) => {
+          if (d.id === selectedNode) return '#f0c040'
+          if (searchMatchedNodeIds.has(d.id)) return '#fbbf24'
+          if (selectedNode && focusMode && !focusNeighborIds.has(d.id)) return '#475569'
+          return '#cbd5e1'
+        })
+        .attr('opacity', (d) => {
+          if (selectedNode && focusMode && !focusNeighborIds.has(d.id)) return 0.3
+          return 1
+        })
+
+      node.selectAll<SVGTextElement, SimulationNode>('.node-icon')
+        .attr('opacity', (d) => {
+          if (selectedNode && focusMode && !focusNeighborIds.has(d.id)) return 0.3
+          return 1
+        })
+    }
+
+    updateVisualState()
 
     simulation.on('tick', () => {
       link
@@ -462,7 +605,19 @@ export default function RelationshipExplorer() {
         .attr('y1', (d) => (d.source as unknown as SimulationNode).y!)
         .attr('x2', (d) => (d.target as unknown as SimulationNode).x!)
         .attr('y2', (d) => (d.target as unknown as SimulationNode).y!)
-      node.attr('transform', (d) => `translate(${(d as SimulationNode).x},${(d as SimulationNode).y})`)
+      node.attr('transform', (d) => `translate(${d.x},${d.y})`)
+
+      simNodes.forEach((n) => {
+        if (n.x !== undefined && n.y !== undefined) {
+          const existing = nodePositionsRef.current.get(n.id)
+          nodePositionsRef.current.set(n.id, {
+            x: n.x,
+            y: n.y,
+            fx: existing?.fx ?? n.fx ?? null,
+            fy: existing?.fy ?? n.fy ?? null,
+          })
+        }
+      })
     })
 
     return () => {
@@ -471,7 +626,7 @@ export default function RelationshipExplorer() {
         simulationRef.current = null
       }
     }
-  }, [filteredNodes, filteredEdges, selectedNode, handleNodeClick])
+  }, [filteredNodes, filteredEdges, selectedNode, handleNodeClick, searchMatchedNodeIds, focusMode, focusNeighborIds])
 
   if (dreams.length === 0) {
     return (
@@ -502,7 +657,7 @@ export default function RelationshipExplorer() {
   return (
     <div className="h-screen flex flex-col">
       <div className="p-6 pb-4">
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="font-display text-3xl text-white flex items-center gap-3">
               <Network size={28} className="text-dreamscape" />
@@ -512,40 +667,92 @@ export default function RelationshipExplorer() {
               探索梦境中人物、地点与关键词之间的关联网络
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
-                showFilters || hasFilters
-                  ? 'bg-white/10 text-white border border-white/20'
-                  : 'bg-white/5 text-slate-500 border border-transparent opacity-50'
-              }`}
-            >
-              <SlidersHorizontal size={14} />
-              <span>筛选</span>
-              {hasFilters && (
-                <span className="w-4 h-4 rounded-full bg-dreamscape text-[10px] flex items-center justify-center text-black font-bold">
-                  !
-                </span>
-              )}
-            </button>
-            {(['person', 'place', 'keyword'] as NodeType[]).map((type) => (
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="搜索人物、地点、关键词..."
+                  className="glow-input w-64 pl-9 pr-8 py-1.5 text-sm bg-slate-900/50"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+                {searchQuery && searchMatchedNodeIds.size > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 glass-card max-h-60 overflow-y-auto z-50">
+                    {filteredNodes
+                      .filter((n) => searchMatchedNodeIds.has(n.id))
+                      .map((node) => (
+                        <div
+                          key={node.id}
+                          onClick={() => handleSearchSelect(node.id)}
+                          className="flex items-center gap-2 px-3 py-2 hover:bg-white/10 cursor-pointer transition-colors"
+                        >
+                          <span>{TYPE_ICONS[node.type]}</span>
+                          <span className="text-sm text-white flex-1">{node.id}</span>
+                          <span className="text-xs text-slate-400">{TYPE_LABELS[node.type]}</span>
+                          <ZoomIn size={14} className="text-dreamscape" />
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
               <button
-                key={type}
-                onClick={() => toggleTypeFilter(type)}
+                onClick={() => setFocusMode(!focusMode)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
-                  typeFilter.has(type)
+                  focusMode
+                    ? 'bg-dreamscape/20 text-dreamscape border border-dreamscape/40'
+                    : 'bg-white/5 text-slate-500 border border-transparent opacity-50'
+                }`}
+                title={focusMode ? '聚焦模式已开启：选中节点后仅显示其邻居' : '点击开启聚焦模式'}
+              >
+                <Crosshair size={14} />
+                <span>聚焦</span>
+              </button>
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+                  showFilters || hasFilters
                     ? 'bg-white/10 text-white border border-white/20'
                     : 'bg-white/5 text-slate-500 border border-transparent opacity-50'
                 }`}
               >
-                <span>{TYPE_ICONS[type]}</span>
-                <span>{TYPE_LABELS[type]}</span>
-                <span className="text-[10px] opacity-60">
-                  ({nodes.filter((n) => n.type === type).length})
-                </span>
+                <SlidersHorizontal size={14} />
+                <span>筛选</span>
+                {hasFilters && (
+                  <span className="w-4 h-4 rounded-full bg-dreamscape text-[10px] flex items-center justify-center text-black font-bold">
+                    !
+                  </span>
+                )}
               </button>
-            ))}
+            </div>
+            <div className="flex items-center gap-3">
+              {(['person', 'place', 'keyword'] as NodeType[]).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => toggleTypeFilter(type)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+                    typeFilter.has(type)
+                      ? 'bg-white/10 text-white border border-white/20'
+                      : 'bg-white/5 text-slate-500 border border-transparent opacity-50'
+                  }`}
+                >
+                  <span>{TYPE_ICONS[type]}</span>
+                  <span>{TYPE_LABELS[type]}</span>
+                  <span className="text-[10px] opacity-60">
+                    ({nodes.filter((n) => n.type === type).length})
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -666,9 +873,23 @@ export default function RelationshipExplorer() {
           ref={containerRef}
           className="flex-1 glass-card glass-card-hover p-4 mr-6 overflow-hidden"
         >
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-xs text-slate-500">
-              {filteredNodes.length} 个节点 · {filteredEdges.length} 条关联 · {filteredNodes.length >= 2 ? '点击节点查看详情 · 拖拽可移动' : '需要至少 2 个节点才能显示网络图'}
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div className="text-xs text-slate-500 flex items-center gap-3">
+              <span>
+                {filteredNodes.length} 个节点 · {filteredEdges.length} 条关联 · {filteredNodes.length >= 2 ? '点击节点查看详情 · 拖拽可移动' : '需要至少 2 个节点才能显示网络图'}
+              </span>
+              {searchQuery && searchMatchedNodeIds.size > 0 && (
+                <span className="text-amber-400 flex items-center gap-1">
+                  <Search size={12} />
+                  找到 {searchMatchedNodeIds.size} 个匹配
+                </span>
+              )}
+              {focusMode && selectedNode && (
+                <span className="text-dreamscape flex items-center gap-1">
+                  <Crosshair size={12} />
+                  聚焦模式
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2 text-xs text-slate-500">
               <div className="flex items-center gap-1">
