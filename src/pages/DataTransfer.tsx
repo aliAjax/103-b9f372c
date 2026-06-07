@@ -101,13 +101,22 @@ function textSimilarity(a: string, b: string): number {
 
 function isValidDate(dateStr: string): boolean {
   if (!dateStr || typeof dateStr !== 'string') return false
-  const date = new Date(dateStr)
-  return !isNaN(date.getTime()) && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr)
+  if (!match) return false
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const date = new Date(Date.UTC(year, month - 1, day))
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  )
 }
 
 function isValidWakeTime(timeStr: string): boolean {
   if (!timeStr || typeof timeStr !== 'string') return false
-  return /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr)
+  return /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr)
 }
 
 function isSuspectedDuplicate(dream: Dream, existing: Dream): { isDuplicate: boolean; similarity: number } {
@@ -119,9 +128,6 @@ function isSuspectedDuplicate(dream: Dream, existing: Dream): { isDuplicate: boo
     return { isDuplicate: false, similarity: 0 }
   }
   const similarity = textSimilarity(dream.text, existing.text)
-  if (similarity >= 0.85) {
-    return { isDuplicate: true, similarity }
-  }
   const hasValidWakeTime = isValidWakeTime(dream.wakeTime) && isValidWakeTime(existing.wakeTime)
   if (hasValidWakeTime && dream.wakeTime === existing.wakeTime && similarity >= 0.8) {
     return { isDuplicate: true, similarity }
