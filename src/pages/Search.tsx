@@ -2,28 +2,17 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDreamStore } from '@/store/dreamStore'
 import { Search, Star, Eye, MapPin, User, Tag, X, CalendarDays, BookmarkPlus, BookOpen, Edit2, Trash2, Check, ChevronDown, Download } from 'lucide-react'
-import type { Dream, SearchView, SearchViewFilters } from '@/types/dream'
+import type { SearchView, SearchViewFilters } from '@/types/dream'
+import {
+  filterDreamsBySearchParams,
+  hasAnyFilter,
+  getSearchViewDescription,
+  createEmptySearchParams,
+  areFiltersEqual,
+} from '@/domain/searchFilter'
+import { getAllTags, getTagSuggestions, type TagType } from '@/domain/tagStats'
 
 type SearchParams = SearchViewFilters
-
-const emptyParams: SearchParams = {
-  keyword: '',
-  person: '',
-  place: '',
-  dateFrom: '',
-  dateTo: '',
-  text: '',
-}
-
-function matchDream(dream: Dream, params: SearchParams): boolean {
-  if (params.keyword && !dream.keywords.some(k => k.toLowerCase().includes(params.keyword.toLowerCase()))) return false
-  if (params.person && !dream.people.some(p => p.toLowerCase().includes(params.person.toLowerCase()))) return false
-  if (params.place && !dream.places.some(p => p.toLowerCase().includes(params.place.toLowerCase()))) return false
-  if (params.dateFrom && dream.date < params.dateFrom) return false
-  if (params.dateTo && dream.date > params.dateTo) return false
-  if (params.text && !dream.text.toLowerCase().includes(params.text.toLowerCase())) return false
-  return true
-}
 
 export default function SearchPage() {
   const navigate = useNavigate()
@@ -32,9 +21,8 @@ export default function SearchPage() {
   const createSearchView = useDreamStore((s) => s.createSearchView)
   const updateSearchView = useDreamStore((s) => s.updateSearchView)
   const deleteSearchView = useDreamStore((s) => s.deleteSearchView)
-  const getAllTags = useDreamStore((s) => s.getAllTags)
 
-  const [params, setParams] = useState<SearchParams>(emptyParams)
+  const [params, setParams] = useState<SearchParams>(createEmptySearchParams())
   const [activeViewId, setActiveViewId] = useState<string | null>(null)
   const [showViewDropdown, setShowViewDropdown] = useState(false)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
@@ -43,23 +31,20 @@ export default function SearchPage() {
   const [editingViewId, setEditingViewId] = useState<string | null>(null)
   const [editingViewName, setEditingViewName] = useState('')
 
-  const allTags = useMemo(() => getAllTags(), [getAllTags])
+  const allTags = useMemo(() => getAllTags(dreams), [dreams])
 
-  const hasAnyFilter = Object.values(params).some(v => v !== '')
-  const activeView = useMemo(() => searchViews.find(v => v.id === activeViewId) || null, [searchViews, activeViewId])
+  const activeView = useMemo(() => searchViews.find((v) => v.id === activeViewId) || null, [searchViews, activeViewId])
+  const hasFilter = hasAnyFilter(params)
 
-  const results = useMemo(() => {
-    if (!hasAnyFilter) return []
-    return dreams.filter(d => matchDream(d, params))
-  }, [dreams, params, hasAnyFilter])
+  const results = useMemo(() => filterDreamsBySearchParams(dreams, params), [dreams, params])
 
   const updateParam = (key: keyof SearchParams, value: string) => {
-    setParams(prev => ({ ...prev, [key]: value }))
+    setParams((prev) => ({ ...prev, [key]: value }))
     setActiveViewId(null)
   }
 
   const clearAll = () => {
-    setParams(emptyParams)
+    setParams(createEmptySearchParams())
     setActiveViewId(null)
   }
 
@@ -70,7 +55,7 @@ export default function SearchPage() {
   }
 
   const handleSaveView = () => {
-    if (!newViewName.trim() || !hasAnyFilter) return
+    if (!newViewName.trim() || !hasFilter) return
     createSearchView(newViewName.trim(), params)
     setNewViewName('')
     setShowSaveDialog(false)
@@ -117,30 +102,13 @@ export default function SearchPage() {
     URL.revokeObjectURL(url)
   }
 
-  const getViewDescription = (view: SearchView) => {
-    const parts: string[] = []
-    if (view.filters.keyword) parts.push(`关键词: ${view.filters.keyword}`)
-    if (view.filters.person) parts.push(`人物: ${view.filters.person}`)
-    if (view.filters.place) parts.push(`地点: ${view.filters.place}`)
-    if (view.filters.dateFrom || view.filters.dateTo) {
-      parts.push(`日期: ${view.filters.dateFrom || '...'} - ${view.filters.dateTo || '...'}`)
-    }
-    if (view.filters.text) parts.push(`正文: ${view.filters.text}`)
-    return parts.join(' · ')
-  }
-
-  const getFilterSuggestions = (type: 'people' | 'places' | 'keywords', query: string) => {
-    if (!query.trim()) return []
-    const lowerQuery = query.toLowerCase()
-    return allTags[type]
-      .filter(t => t.name.toLowerCase().includes(lowerQuery))
-      .slice(0, 5)
-      .map(t => t.name)
+  const getFilterSuggestions = (type: TagType, query: string) => {
+    return getTagSuggestions(allTags, type, query, 5)
   }
 
   const filtersChanged = useMemo(() => {
     if (!activeView) return false
-    return JSON.stringify(activeView.filters) !== JSON.stringify(params)
+    return !areFiltersEqual(activeView.filters, params)
   }, [activeView, params])
 
   return (
@@ -155,7 +123,7 @@ export default function SearchPage() {
             <p className="text-slate-400 text-sm mt-1">按关键词、人物、地点、日期范围和正文内容搜索本地保存的梦境</p>
           </div>
           <div className="flex items-center gap-2">
-            {hasAnyFilter && (
+            {hasFilter && (
               <button
                 onClick={() => setShowSaveDialog(true)}
                 className="btn-secondary px-3 py-2 text-sm flex items-center gap-2"
@@ -190,7 +158,7 @@ export default function SearchPage() {
                   </div>
                   {activeView && (
                     <div className="text-xs text-slate-400 truncate max-w-xl">
-                      {getViewDescription(activeView)}
+                      {getSearchViewDescription(activeView)}
                     </div>
                   )}
                 </div>
@@ -212,7 +180,7 @@ export default function SearchPage() {
                     >
                       <div className="text-sm text-white font-medium">{view.name}</div>
                       <div className="text-xs text-slate-400 truncate">
-                        {getViewDescription(view)}
+                        {getSearchViewDescription(view)}
                       </div>
                     </button>
                   ))}
@@ -341,7 +309,7 @@ export default function SearchPage() {
           </div>
         </div>
 
-        {hasAnyFilter && (
+        {hasFilter && (
           <div className="flex items-center justify-between mt-4 pt-3 border-t border-dreamscape/10">
             <span className="text-xs text-slate-400">
               {results.length > 0
@@ -368,7 +336,7 @@ export default function SearchPage() {
         )}
       </div>
 
-      {!hasAnyFilter && (
+      {!hasFilter && (
         <div className="text-center py-20">
           <div className="text-5xl mb-4">🔍</div>
           <p className="text-slate-400 text-sm">输入搜索条件开始查找梦境</p>
@@ -378,7 +346,7 @@ export default function SearchPage() {
         </div>
       )}
 
-      {hasAnyFilter && results.length === 0 && (
+      {hasFilter && results.length === 0 && (
         <div className="text-center py-20">
           <div className="text-5xl mb-4">🌀</div>
           <p className="text-slate-400 text-sm">没有找到匹配的梦境，试试其他关键词</p>
@@ -473,7 +441,7 @@ export default function SearchPage() {
               />
               <div className="text-xs text-slate-500 mb-4 p-3 bg-white/5 rounded-lg">
                 <div className="font-medium text-slate-400 mb-1">将保存以下筛选条件：</div>
-                <div>{getViewDescription({ id: '', name: '', filters: params, createdAt: '', updatedAt: '' }) || '无筛选条件'}</div>
+                <div>{getSearchViewDescription({ filters: params }) || '无筛选条件'}</div>
               </div>
               <div className="flex items-center justify-end gap-2">
                 <button
@@ -552,7 +520,7 @@ export default function SearchPage() {
                               )}
                             </div>
                             <div className="text-xs text-slate-400 mt-1 truncate">
-                              {getViewDescription(view)}
+                              {getSearchViewDescription(view)}
                             </div>
                             <div className="text-[10px] text-slate-500 mt-1">
                               创建于 {new Date(view.createdAt).toLocaleDateString('zh-CN')}

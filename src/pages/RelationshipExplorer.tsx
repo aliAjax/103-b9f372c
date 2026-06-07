@@ -5,14 +5,26 @@ import { useDreamStore } from '@/store/dreamStore'
 import { Network, Users, MapPin, Tag, X, Star, Eye, Edit3, Sparkles, Calendar, Filter, SlidersHorizontal, RotateCcw, Search, Crosshair, ZoomIn } from 'lucide-react'
 import type { Dream, RelationshipNode, RelationshipEdge, NodeType, NodeNeighbor } from '@/types/dream'
 import { seedDemoData } from '@/utils/seedData'
+import {
+  filterDreamsByRelationshipRange,
+  getRelationshipDateRange,
+  type RelationshipTimeRange,
+  type RelationshipFilterState,
+} from '@/domain/dateFilter'
+import {
+  buildRelationshipGraph,
+  getNodeNeighbors,
+  filterNodesByType,
+  filterEdgesByMinWeight,
+  getNodeIdsFromEdges,
+  filterEdgesByNodeIds,
+  filterNodesByIds,
+  searchNodes,
+  getNeighborNodeIds,
+} from '@/domain/networkGraph'
+import { getDreamsWithTag } from '@/domain/searchFilter'
 
-type TimeRangeType = 'all' | '30days' | '90days' | 'month' | 'custom'
-
-interface FilterState {
-  timeRange: TimeRangeType
-  selectedMonth: string
-  dateFrom: string
-  dateTo: string
+interface FilterState extends RelationshipFilterState {
   minAssociation: number
 }
 
@@ -40,150 +52,6 @@ const TYPE_LABELS: Record<NodeType, string> = {
   person: '人物',
   place: '地点',
   keyword: '关键词',
-}
-
-function buildGraphData(dreams: Dream[]) {
-  const nodeMap = new Map<string, { count: number; type: NodeType }>()
-  const edgeMap = new Map<string, { weight: number; dreamIds: string[] }>()
-
-  dreams.forEach((dream) => {
-    const allTags: Array<{ name: string; type: NodeType }> = [
-      ...dream.people.map((name) => ({ name, type: 'person' as NodeType })),
-      ...dream.places.map((name) => ({ name, type: 'place' as NodeType })),
-      ...dream.keywords.map((name) => ({ name, type: 'keyword' as NodeType })),
-    ]
-
-    allTags.forEach(({ name, type }) => {
-      const existing = nodeMap.get(name)
-      if (existing) {
-        existing.count++
-      } else {
-        nodeMap.set(name, { count: 1, type })
-      }
-    })
-
-    for (let i = 0; i < allTags.length; i++) {
-      for (let j = i + 1; j < allTags.length; j++) {
-        const pair = [allTags[i].name, allTags[j].name].sort().join('||')
-        const existing = edgeMap.get(pair)
-        if (existing) {
-          existing.weight++
-          if (!existing.dreamIds.includes(dream.id)) {
-            existing.dreamIds.push(dream.id)
-          }
-        } else {
-          edgeMap.set(pair, { weight: 1, dreamIds: [dream.id] })
-        }
-      }
-    }
-  })
-
-  const nodes: RelationshipNode[] = Array.from(nodeMap.entries()).map(([id, data]) => ({
-    id,
-    count: data.count,
-    type: data.type,
-  }))
-
-  const nodeIds = new Set(nodes.map((n) => n.id))
-
-  const edges: RelationshipEdge[] = Array.from(edgeMap.entries())
-    .map(([pair, data]) => {
-      const [source, target] = pair.split('||')
-      if (!nodeIds.has(source) || !nodeIds.has(target)) return null
-      return {
-        source,
-        target,
-        weight: data.weight,
-        dreamIds: data.dreamIds,
-      }
-    })
-    .filter(Boolean) as RelationshipEdge[]
-
-  return { nodes, edges }
-}
-
-function getRelatedDreams(dreams: Dream[], nodeId: string): Dream[] {
-  return dreams.filter(
-    (d) =>
-      d.people.includes(nodeId) ||
-      d.places.includes(nodeId) ||
-      d.keywords.includes(nodeId)
-  )
-}
-
-function getNeighbors(
-  nodeId: string,
-  nodes: RelationshipNode[],
-  edges: RelationshipEdge[]
-): NodeNeighbor[] {
-  const nodeTypeMap = new Map(nodes.map((n) => [n.id, n.type]))
-  const neighbors: Map<string, { weight: number; type: NodeType }> = new Map()
-
-  edges.forEach((edge) => {
-    if (edge.source === nodeId) {
-      neighbors.set(edge.target, {
-        weight: edge.weight,
-        type: nodeTypeMap.get(edge.target)!,
-      })
-    } else if (edge.target === nodeId) {
-      neighbors.set(edge.source, {
-        weight: edge.weight,
-        type: nodeTypeMap.get(edge.source)!,
-      })
-    }
-  })
-
-  return Array.from(neighbors.entries())
-    .map(([id, data]) => ({ id, type: data.type, weight: data.weight }))
-    .sort((a, b) => b.weight - a.weight)
-}
-
-function getDateRangeForTimeRange(
-  timeRange: TimeRangeType,
-  selectedMonth: string,
-  dateFrom: string,
-  dateTo: string,
-  today: Date
-): { from: string | null; to: string | null } {
-  const formatDate = (d: Date) => d.toISOString().split('T')[0]
-
-  switch (timeRange) {
-    case 'all':
-      return { from: null, to: null }
-    case '30days': {
-      const from = new Date(today)
-      from.setDate(from.getDate() - 30)
-      return { from: formatDate(from), to: formatDate(today) }
-    }
-    case '90days': {
-      const from = new Date(today)
-      from.setDate(from.getDate() - 90)
-      return { from: formatDate(from), to: formatDate(today) }
-    }
-    case 'month': {
-      if (!selectedMonth) return { from: null, to: null }
-      const [year, month] = selectedMonth.split('-').map(Number)
-      const from = new Date(year, month - 1, 1)
-      const to = new Date(year, month, 0)
-      return { from: formatDate(from), to: formatDate(to) }
-    }
-    case 'custom': {
-      return {
-        from: dateFrom || null,
-        to: dateTo || null,
-      }
-    }
-    default:
-      return { from: null, to: null }
-  }
-}
-
-function filterDreamsByDate(dreams: Dream[], from: string | null, to: string | null): Dream[] {
-  return dreams.filter((d) => {
-    if (from && d.date < from) return false
-    if (to && d.date > to) return false
-    return true
-  })
 }
 
 function getSimulationEndpointId(endpoint: SimulationEdgeEndpoint): string {
@@ -216,37 +84,33 @@ export default function RelationshipExplorer() {
   const today = useMemo(() => new Date(), [])
 
   const dateRange = useMemo(
-    () => getDateRangeForTimeRange(filters.timeRange, filters.selectedMonth, filters.dateFrom, filters.dateTo, today),
+    () => getRelationshipDateRange(filters, today),
     [filters, today]
   )
 
   const dateFilteredDreams = useMemo(
-    () => filterDreamsByDate(dreams, dateRange.from, dateRange.to),
-    [dreams, dateRange]
+    () => filterDreamsByRelationshipRange(dreams, filters, today),
+    [dreams, filters, today]
   )
 
-  const { nodes, edges } = useMemo(() => buildGraphData(dateFilteredDreams), [dateFilteredDreams])
+  const { nodes, edges } = useMemo(() => buildRelationshipGraph(dateFilteredDreams), [dateFilteredDreams])
 
   const maxWeight = useMemo(() => Math.max(...edges.map((e) => e.weight), 1), [edges])
 
   const strengthFilteredEdges = useMemo(
-    () => edges.filter((e) => e.weight >= filters.minAssociation),
+    () => filterEdgesByMinWeight(edges, filters.minAssociation),
     [edges, filters.minAssociation]
   )
 
-  const strengthFilteredNodeIds = useMemo(() => {
-    const ids = new Set<string>()
-    strengthFilteredEdges.forEach((e) => {
-      ids.add(e.source)
-      ids.add(e.target)
-    })
-    return ids
-  }, [strengthFilteredEdges])
-
-  const filteredNodes = useMemo(
-    () => nodes.filter((n) => typeFilter.has(n.type) && strengthFilteredNodeIds.has(n.id)),
-    [nodes, typeFilter, strengthFilteredNodeIds]
+  const strengthFilteredNodeIds = useMemo(
+    () => getNodeIdsFromEdges(strengthFilteredEdges),
+    [strengthFilteredEdges]
   )
+
+  const filteredNodes = useMemo(() => {
+    const typeFiltered = filterNodesByType(nodes, typeFilter)
+    return filterNodesByIds(typeFiltered, strengthFilteredNodeIds)
+  }, [nodes, typeFilter, strengthFilteredNodeIds])
 
   const filteredNodeIds = useMemo(
     () => new Set(filteredNodes.map((n) => n.id)),
@@ -254,42 +118,29 @@ export default function RelationshipExplorer() {
   )
 
   const filteredEdges = useMemo(
-    () =>
-      strengthFilteredEdges.filter(
-        (e) => filteredNodeIds.has(e.source) && filteredNodeIds.has(e.target)
-      ),
+    () => filterEdgesByNodeIds(strengthFilteredEdges, filteredNodeIds),
     [strengthFilteredEdges, filteredNodeIds]
   )
 
-  const searchMatchedNodeIds = useMemo(() => {
-    if (!searchQuery.trim()) return new Set<string>()
-    const query = searchQuery.toLowerCase().trim()
-    return new Set(
-      filteredNodes
-        .filter((n) => n.id.toLowerCase().includes(query))
-        .map((n) => n.id)
-    )
-  }, [searchQuery, filteredNodes])
+  const searchMatchedNodeIds = useMemo(
+    () => searchNodes(filteredNodes, searchQuery),
+    [searchQuery, filteredNodes]
+  )
 
-  const focusNeighborIds = useMemo(() => {
-    if (!selectedNode || !focusMode) return new Set<string>()
-    const neighborIds = new Set<string>([selectedNode])
-    filteredEdges.forEach((e) => {
-      if (e.source === selectedNode) neighborIds.add(e.target)
-      if (e.target === selectedNode) neighborIds.add(e.source)
-    })
-    return neighborIds
-  }, [selectedNode, focusMode, filteredEdges])
+  const focusNeighborIds = useMemo(
+    () => getNeighborNodeIds(selectedNode, filteredEdges, true),
+    [selectedNode, focusMode, filteredEdges]
+  )
 
   const hasFilters = filters.timeRange !== 'all' || filters.minAssociation > 1 || searchQuery.trim() !== ''
 
   const relatedDreams = useMemo(
-    () => (selectedNode ? getRelatedDreams(dateFilteredDreams, selectedNode) : []),
+    () => (selectedNode ? getDreamsWithTag(dateFilteredDreams, selectedNode) : []),
     [dateFilteredDreams, selectedNode]
   )
 
   const neighbors = useMemo(
-    () => (selectedNode ? getNeighbors(selectedNode, filteredNodes, filteredEdges) : []),
+    () => (selectedNode ? getNodeNeighbors(selectedNode, filteredNodes, filteredEdges) : []),
     [selectedNode, filteredNodes, filteredEdges]
   )
 
@@ -784,7 +635,7 @@ export default function RelationshipExplorer() {
                 </label>
                 <select
                   value={filters.timeRange}
-                  onChange={(e) => updateFilter('timeRange', e.target.value as TimeRangeType)}
+                  onChange={(e) => updateFilter('timeRange', e.target.value as RelationshipTimeRange)}
                   className="glow-input w-full px-3 py-2 text-sm bg-slate-900/50"
                 >
                   <option value="all">全部时间</option>

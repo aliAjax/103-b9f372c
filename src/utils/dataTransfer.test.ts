@@ -5,12 +5,11 @@ import {
   describeErrors,
   levenshteinDistance,
   textSimilarity,
-  isValidDate,
-  isValidWakeTime,
   isSuspectedDuplicate,
   findSuspectedDuplicate,
   analyzeImport,
 } from './dataTransfer'
+import { isValidDate, isValidWakeTime } from '@/domain/dateFilter'
 
 const createValidDream = (overrides: Partial<Dream> = {}): Dream => ({
   id: 'test-id-1',

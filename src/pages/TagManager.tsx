@@ -2,9 +2,18 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDreamStore } from '@/store/dreamStore'
 import { Tags, User, MapPin, Tag, Edit2, Check, X, Search, ChevronDown, ChevronUp, Eye, AlertTriangle } from 'lucide-react'
+import {
+  getAllTags,
+  buildLowFreqTags,
+  filterTagsByName,
+  getTotalTagCount,
+  getTotalTagUsage,
+  getLowFreqTagCount,
+  type TagType,
+} from '@/domain/tagStats'
 
 interface EditingState {
-  type: 'people' | 'places' | 'keywords' | null
+  type: TagType | null
   name: string
   newValue: string
 }
@@ -19,85 +28,24 @@ export default function TagManager() {
   const dreams = useDreamStore((s) => s.dreams)
   const renameTag = useDreamStore((s) => s.renameTag)
 
-  const allTags = useMemo(() => {
-    const peopleMap = new Map<string, number>()
-    const placesMap = new Map<string, number>()
-    const keywordsMap = new Map<string, number>()
-
-    dreams.forEach((d) => {
-      d.people.forEach((tag) => {
-        peopleMap.set(tag, (peopleMap.get(tag) || 0) + 1)
-      })
-      d.places.forEach((tag) => {
-        placesMap.set(tag, (placesMap.get(tag) || 0) + 1)
-      })
-      d.keywords.forEach((tag) => {
-        keywordsMap.set(tag, (keywordsMap.get(tag) || 0) + 1)
-      })
-    })
-
-    const mapToSortedArray = (map: Map<string, number>) =>
-      Array.from(map.entries())
-        .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
-
-    return {
-      people: mapToSortedArray(peopleMap),
-      places: mapToSortedArray(placesMap),
-      keywords: mapToSortedArray(keywordsMap),
-    }
-  }, [dreams])
+  const allTags = useMemo(() => getAllTags(dreams), [dreams])
   const [searchText, setSearchText] = useState('')
   const [editing, setEditing] = useState<EditingState>(emptyEditing)
   const [lowFreqExpanded, setLowFreqExpanded] = useState(false)
-  const [lowFreqType, setLowFreqType] = useState<'people' | 'places' | 'keywords'>('people')
+  const [lowFreqType, setLowFreqType] = useState<TagType>('people')
   const navigate = useNavigate()
 
-  type LowFreqDream = { id: string; date: string; text: string }
+  const lowFreqTags = useMemo(() => buildLowFreqTags(dreams, allTags, 2), [allTags, dreams])
 
-  interface LowFreqTag {
-    name: string
-    count: number
-    dreams: LowFreqDream[]
-  }
+  const lowFreqTotal = getLowFreqTagCount(lowFreqTags)
+  const totalCount = getTotalTagCount(allTags)
+  const totalUsage = getTotalTagUsage(allTags)
 
-  const lowFreqTags = useMemo(() => {
-    const buildLowFreq = (type: 'people' | 'places' | 'keywords') => {
-      const tags = allTags[type].filter((t) => t.count <= 2)
-      return tags.map((tag) => {
-        const relatedDreams = dreams
-          .filter((d) => d[type].includes(tag.name))
-          .map((d) => ({ id: d.id, date: d.date, text: d.text }))
-        return { name: tag.name, count: tag.count, dreams: relatedDreams } as LowFreqTag
-      })
-    }
-    return {
-      people: buildLowFreq('people'),
-      places: buildLowFreq('places'),
-      keywords: buildLowFreq('keywords'),
-    }
-  }, [allTags, dreams])
+  const filteredPeople = filterTagsByName(allTags.people, searchText)
+  const filteredPlaces = filterTagsByName(allTags.places, searchText)
+  const filteredKeywords = filterTagsByName(allTags.keywords, searchText)
 
-  const lowFreqTotal =
-    lowFreqTags.people.length + lowFreqTags.places.length + lowFreqTags.keywords.length
-
-  const totalCount = allTags.people.length + allTags.places.length + allTags.keywords.length
-  const totalUsage =
-    allTags.people.reduce((sum, t) => sum + t.count, 0) +
-    allTags.places.reduce((sum, t) => sum + t.count, 0) +
-    allTags.keywords.reduce((sum, t) => sum + t.count, 0)
-
-  const filterTags = <T extends { name: string }>(tags: T[]): T[] => {
-    if (!searchText.trim()) return tags
-    const query = searchText.toLowerCase()
-    return tags.filter((t) => t.name.toLowerCase().includes(query))
-  }
-
-  const filteredPeople = filterTags(allTags.people)
-  const filteredPlaces = filterTags(allTags.places)
-  const filteredKeywords = filterTags(allTags.keywords)
-
-  const startEditing = (type: 'people' | 'places' | 'keywords', name: string) => {
+  const startEditing = (type: TagType, name: string) => {
     setEditing({ type, name, newValue: name })
   }
 
@@ -111,7 +59,7 @@ export default function TagManager() {
     setEditing(emptyEditing)
   }
 
-  const isEditing = (type: 'people' | 'places' | 'keywords', name: string) =>
+  const isEditing = (type: TagType, name: string) =>
     editing.type === type && editing.name === name
 
   const TagSection = ({
@@ -123,7 +71,7 @@ export default function TagManager() {
   }: {
     title: string
     icon: typeof User
-    type: 'people' | 'places' | 'keywords'
+    type: TagType
     tags: { name: string; count: number }[]
     color: string
   }) => (

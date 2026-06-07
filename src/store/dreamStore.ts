@@ -1,5 +1,12 @@
 import { create } from 'zustand'
 import type { Dream, Backup, SearchView, SearchViewFilters } from '@/types/dream'
+import {
+  getAllTags as computeAllTags,
+  getRecentTags as computeRecentTags,
+  type TagType,
+  type AllTags,
+} from '@/domain/tagStats'
+import { filterDreamsByTag } from '@/domain/searchFilter'
 
 const STORAGE_KEY = 'dreamscope_dreams'
 const BACKUP_STORAGE_KEY = 'dreamscope_backups'
@@ -44,17 +51,6 @@ function saveSearchViews(views: SearchView[]) {
   localStorage.setItem(SEARCH_VIEWS_STORAGE_KEY, JSON.stringify(views))
 }
 
-interface TagCount {
-  name: string
-  count: number
-}
-
-interface AllTags {
-  people: TagCount[]
-  places: TagCount[]
-  keywords: TagCount[]
-}
-
 interface DreamStore {
   dreams: Dream[]
   selectedKeyword: string | null
@@ -65,9 +61,9 @@ interface DreamStore {
   selectKeyword: (keyword: string | null) => void
   setSidebarOpen: (open: boolean) => void
   getFilteredDreams: () => Dream[]
-  getRecentTags: (type: 'people' | 'places' | 'keywords') => string[]
+  getRecentTags: (type: TagType) => string[]
   getAllTags: () => AllTags
-  renameTag: (type: 'people' | 'places' | 'keywords', oldName: string, newName: string) => void
+  renameTag: (type: TagType, oldName: string, newName: string) => void
   importDreams: (dreams: Dream[]) => void
   backups: Backup[]
   createBackup: (name: string) => Backup
@@ -127,57 +123,15 @@ export const useDreamStore = create<DreamStore>((set, get) => ({
 
   getFilteredDreams: () => {
     const { dreams, selectedKeyword } = get()
-    if (!selectedKeyword) return dreams
-    return dreams.filter(
-      (d) =>
-        d.keywords.includes(selectedKeyword) ||
-        d.people.includes(selectedKeyword) ||
-        d.places.includes(selectedKeyword)
-    )
+    return filterDreamsByTag(dreams, selectedKeyword)
   },
 
   getRecentTags: (type) => {
-    const dreams = get().dreams
-    const tagMap = new Map<string, number>()
-    dreams.forEach((d) => {
-      d[type].forEach((tag) => {
-        tagMap.set(tag, (tagMap.get(tag) || 0) + 1)
-      })
-    })
-    return Array.from(tagMap.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 20)
-      .map(([tag]) => tag)
+    return computeRecentTags(get().dreams, type, 20)
   },
 
   getAllTags: () => {
-    const dreams = get().dreams
-    const peopleMap = new Map<string, number>()
-    const placesMap = new Map<string, number>()
-    const keywordsMap = new Map<string, number>()
-
-    dreams.forEach((d) => {
-      d.people.forEach((tag) => {
-        peopleMap.set(tag, (peopleMap.get(tag) || 0) + 1)
-      })
-      d.places.forEach((tag) => {
-        placesMap.set(tag, (placesMap.get(tag) || 0) + 1)
-      })
-      d.keywords.forEach((tag) => {
-        keywordsMap.set(tag, (keywordsMap.get(tag) || 0) + 1)
-      })
-    })
-
-    const mapToSortedArray = (map: Map<string, number>): TagCount[] =>
-      Array.from(map.entries())
-        .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
-
-    return {
-      people: mapToSortedArray(peopleMap),
-      places: mapToSortedArray(placesMap),
-      keywords: mapToSortedArray(keywordsMap),
-    }
+    return computeAllTags(get().dreams)
   },
 
   renameTag: (type, oldName, newName) => {

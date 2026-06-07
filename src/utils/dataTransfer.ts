@@ -1,4 +1,5 @@
 import type { Dream } from '@/types/dream'
+import { isValidDate, isValidWakeTime } from '@/domain/dateFilter'
 
 export interface SuspectedDuplicate {
   dream: Dream
@@ -94,26 +95,6 @@ export function textSimilarity(a: string, b: string): number {
   const distance = levenshteinDistance(cleanA, cleanB)
   const similarity = 1 - distance / maxLen
   return Math.max(0, Math.min(1, similarity))
-}
-
-export function isValidDate(dateStr: string): boolean {
-  if (!dateStr || typeof dateStr !== 'string') return false
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr)
-  if (!match) return false
-  const year = Number(match[1])
-  const month = Number(match[2])
-  const day = Number(match[3])
-  const date = new Date(Date.UTC(year, month - 1, day))
-  return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
-  )
-}
-
-export function isValidWakeTime(timeStr: string): boolean {
-  if (!timeStr || typeof timeStr !== 'string') return false
-  return /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr)
 }
 
 export function isSuspectedDuplicate(dream: Dream, existing: Dream): { isDuplicate: boolean; similarity: number } {

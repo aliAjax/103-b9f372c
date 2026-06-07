@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import * as d3 from 'd3'
 import { useDreamStore } from '@/store/dreamStore'
 import type { Dream, CooccurrenceNode, CooccurrenceEdge } from '@/types/dream'
+import { buildKeywordCooccurrenceNetwork } from '@/domain/networkGraph'
 
 interface NetworkNode extends CooccurrenceNode, d3.SimulationNodeDatum {}
 
@@ -41,38 +42,7 @@ export default function KeywordNetwork({ dreams }: Props) {
 
     svg.attr('width', width).attr('height', height)
 
-    const keywordMap = new Map<string, number>()
-    dreams.forEach((d) => {
-      d.keywords.forEach((k) => {
-        keywordMap.set(k, (keywordMap.get(k) || 0) + 1)
-      })
-    })
-
-    const cooccurrenceMap = new Map<string, number>()
-    dreams.forEach((d) => {
-      const ks = d.keywords
-      for (let i = 0; i < ks.length; i++) {
-        for (let j = i + 1; j < ks.length; j++) {
-          const pair = [ks[i], ks[j]].sort().join('||')
-          cooccurrenceMap.set(pair, (cooccurrenceMap.get(pair) || 0) + 1)
-        }
-      }
-    })
-
-    const nodes: CooccurrenceNode[] = Array.from(keywordMap.entries())
-      .filter(([, count]) => count >= 1)
-      .map(([id, count]) => ({ id, count }))
-
-    const nodeIds = new Set(nodes.map((n) => n.id))
-
-    const edges: CooccurrenceEdge[] = Array.from(cooccurrenceMap.entries())
-      .filter(([, weight]) => weight >= 1)
-      .map(([pair, weight]) => {
-        const [source, target] = pair.split('||')
-        if (!nodeIds.has(source) || !nodeIds.has(target)) return null
-        return { source, target, weight }
-      })
-      .filter(Boolean) as CooccurrenceEdge[]
+    const { nodes, edges } = buildKeywordCooccurrenceNetwork(dreams, 1, 1)
 
     if (nodes.length === 0) return
 

@@ -6,40 +6,21 @@ import PeopleFrequency from '@/components/PeopleFrequency'
 import MonthCalendar from '@/components/MonthCalendar'
 import { seedDemoData } from '@/utils/seedData'
 import { Moon, List } from 'lucide-react'
-import type { Dream } from '@/types/dream'
+import { filterDreamsByDashboardRange, type DashboardTimeRange } from '@/domain/dateFilter'
 
-type TimeRange = '7d' | '30d' | '90d' | 'all'
-
-const TIME_RANGE_OPTIONS: { key: TimeRange; label: string }[] = [
+const TIME_RANGE_OPTIONS: { key: DashboardTimeRange; label: string }[] = [
   { key: '7d', label: '最近7天' },
   { key: '30d', label: '最近30天' },
   { key: '90d', label: '最近90天' },
   { key: 'all', label: '全部' },
 ]
 
-function formatLocalDate(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function filterDreamsByRange(dreams: Dream[], range: TimeRange): Dream[] {
-  if (range === 'all') return dreams
-  const now = new Date()
-  now.setHours(0, 0, 0, 0)
-  const days = range === '7d' ? 7 : range === '30d' ? 30 : 90
-  const cutoff = new Date(now.getTime() - (days - 1) * 24 * 60 * 60 * 1000)
-  const cutoffStr = formatLocalDate(cutoff)
-  return dreams.filter((d) => d.date >= cutoffStr)
-}
-
 export default function Dashboard() {
   const dreams = useDreamStore((s) => s.dreams)
   const setSidebarOpen = useDreamStore((s) => s.setSidebarOpen)
-  const [timeRange, setTimeRange] = useState<TimeRange>('all')
+  const [timeRange, setTimeRange] = useState<DashboardTimeRange>('all')
 
-  const filteredDreams = useMemo(() => filterDreamsByRange(dreams, timeRange), [dreams, timeRange])
+  const filteredDreams = useMemo(() => filterDreamsByDashboardRange(dreams, timeRange), [dreams, timeRange])
 
   const totalDreams = filteredDreams.length
   const avgEmotion = totalDreams
