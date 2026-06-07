@@ -3,7 +3,7 @@ import * as d3 from 'd3'
 import { useNavigate } from 'react-router-dom'
 import { useDreamStore } from '@/store/dreamStore'
 import { Network, Users, MapPin, Tag, X, Star, Eye, Edit3, Sparkles, Calendar, Filter, SlidersHorizontal, RotateCcw, Search, Crosshair, ZoomIn } from 'lucide-react'
-import type { Dream, RelationshipNode, RelationshipEdge, NodeType, NodeNeighbor } from '@/types/dream'
+import type { RelationshipNode, RelationshipEdge, NodeType } from '@/types/dream'
 import { seedDemoData } from '@/utils/seedData'
 import {
   filterDreamsByRelationshipRange,
@@ -127,10 +127,10 @@ export default function RelationshipExplorer() {
     [searchQuery, filteredNodes]
   )
 
-  const focusNeighborIds = useMemo(
-    () => getNeighborNodeIds(selectedNode, filteredEdges, true),
-    [selectedNode, focusMode, filteredEdges]
-  )
+  const focusNeighborIds = useMemo(() => {
+    if (!selectedNode || !focusMode) return new Set<string>()
+    return getNeighborNodeIds(selectedNode, filteredEdges, true)
+  }, [selectedNode, focusMode, filteredEdges])
 
   const hasFilters = filters.timeRange !== 'all' || filters.minAssociation > 1 || searchQuery.trim() !== ''
 
