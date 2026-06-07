@@ -334,7 +334,6 @@ export default function RelationshipExplorer() {
 
   const updateFilter = useCallback(<K extends keyof FilterState>(key: K, value: FilterState[K]) => {
     setFilters((prev) => ({ ...prev, [key]: value }))
-    setSelectedNode(null)
   }, [])
 
   const handleNodeClick = useCallback(
@@ -362,7 +361,6 @@ export default function RelationshipExplorer() {
       }
       return next
     })
-    setSelectedNode(null)
   }, [])
 
   const simulationRef = useRef<d3.Simulation<SimulationNode, undefined> | null>(null)
@@ -372,6 +370,13 @@ export default function RelationshipExplorer() {
       setSelectedNode(null)
     }
   }, [selectedNode, filteredNodeIds])
+
+  useEffect(() => {
+    if (selectedNode && filteredNodeIds.has(selectedNode)) {
+      const timer = setTimeout(() => focusOnNode(selectedNode), 150)
+      return () => clearTimeout(timer)
+    }
+  }, [filteredNodes])
 
   useEffect(() => {
     if (!svgRef.current) return
@@ -437,23 +442,6 @@ export default function RelationshipExplorer() {
     svg.call(zoom)
 
     const defs = g.append('defs')
-
-    defs
-      .append('filter')
-      .attr('id', 'search-glow')
-      .attr('x', '-50%')
-      .attr('y', '-50%')
-      .attr('width', '200%')
-      .attr('height', '200%')
-      .append('feGaussianBlur')
-      .attr('stdDeviation', '4')
-      .attr('result', 'coloredBlur')
-
-    const searchGlowMerge = defs
-      .select('#search-glow')
-      .append('feMerge')
-    searchGlowMerge.append('feMergeNode').attr('in', 'coloredBlur')
-    searchGlowMerge.append('feMergeNode').attr('in', 'SourceGraphic')
 
     filteredEdges.forEach((edge, i) => {
       const gradient = defs
