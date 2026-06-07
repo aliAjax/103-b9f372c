@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDreamStore } from '@/store/dreamStore'
 import { CalendarDays, Star, Eye, User, MapPin, Tag, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -71,9 +71,9 @@ function getClarityLabel(score: number): string {
 export default function MonthlySummary() {
   const navigate = useNavigate()
   const dreams = useDreamStore((s) => s.dreams)
-  const now = new Date()
-  const [selectedYear, setSelectedYear] = useState(now.getFullYear())
-  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1)
+  const nowRef = useRef(new Date())
+  const [selectedYear, setSelectedYear] = useState(nowRef.current.getFullYear())
+  const [selectedMonth, setSelectedMonth] = useState(nowRef.current.getMonth() + 1)
 
   const availableMonths = useMemo(() => {
     const months = new Set<string>()
@@ -89,7 +89,7 @@ export default function MonthlySummary() {
     dreams.forEach((d) => {
       years.add(Number(d.date.split('-')[0]))
     })
-    years.add(now.getFullYear())
+    years.add(nowRef.current.getFullYear())
     return Array.from(years).sort((a, b) => b - a)
   }, [dreams])
 

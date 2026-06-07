@@ -21,6 +21,9 @@ interface SimulationNode extends RelationshipNode, d3.SimulationNodeDatum {
   fy?: number | null
 }
 
+type SimulationEdge = d3.SimulationLinkDatum<SimulationNode> & RelationshipEdge
+type SimulationEdgeEndpoint = string | number | SimulationNode
+
 const TYPE_COLORS: Record<NodeType, string> = {
   person: '#ec4899',
   place: '#22c55e',
@@ -183,6 +186,10 @@ function filterDreamsByDate(dreams: Dream[], from: string | null, to: string | n
   })
 }
 
+function getSimulationEndpointId(endpoint: SimulationEdgeEndpoint): string {
+  return typeof endpoint === 'object' ? endpoint.id : String(endpoint)
+}
+
 export default function RelationshipExplorer() {
   const navigate = useNavigate()
   const dreams = useDreamStore((s) => s.dreams)
@@ -321,10 +328,12 @@ export default function RelationshipExplorer() {
 
     const transform = d3.zoomIdentity.translate(x, y).scale(scale)
 
+    const applyTransform = zoomRef.current.transform
+
     d3.select(svgRef.current)
       .transition()
       .duration(750)
-      .call(zoomRef.current.transform as any, transform)
+      .call(applyTransform, transform)
   }, [])
 
   const handleSearchSelect = useCallback((nodeId: string) => {
@@ -371,12 +380,14 @@ export default function RelationshipExplorer() {
     }
   }, [selectedNode, filteredNodeIds])
 
+  const selectedNodeStillVisible = selectedNode ? filteredNodeIds.has(selectedNode) : false
+
   useEffect(() => {
-    if (selectedNode && filteredNodeIds.has(selectedNode)) {
+    if (selectedNode && selectedNodeStillVisible) {
       const timer = setTimeout(() => focusOnNode(selectedNode), 150)
       return () => clearTimeout(timer)
     }
-  }, [filteredNodes])
+  }, [filteredNodes, focusOnNode, selectedNode, selectedNodeStillVisible])
 
   useEffect(() => {
     if (!svgRef.current) return
@@ -411,7 +422,11 @@ export default function RelationshipExplorer() {
       }
     })
 
-    const simEdges = filteredEdges.map((e) => ({ ...e, source: e.source as string, target: e.target as string }))
+    const simEdges: SimulationEdge[] = filteredEdges.map((e) => ({
+      ...e,
+      source: e.source,
+      target: e.target,
+    }))
 
     const simulation = d3
       .forceSimulation(simNodes)
@@ -523,9 +538,9 @@ export default function RelationshipExplorer() {
       .style('pointer-events', 'none')
 
     const updateVisualState = () => {
-      link.attr('stroke-opacity', (d: any) => {
-        const src = d.source.id || d.source
-        const tgt = d.target.id || d.target
+      link.attr('stroke-opacity', (d) => {
+        const src = getSimulationEndpointId(d.source)
+        const tgt = getSimulationEndpointId(d.target)
         if (selectedNode && focusMode) {
           if (src === selectedNode || tgt === selectedNode) return 0.8
           return 0.08

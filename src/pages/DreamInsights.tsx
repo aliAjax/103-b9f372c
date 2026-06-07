@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useDreamStore } from '@/store/dreamStore'
-import { BarChart3, Clock, MapPin, Users, Calendar, Brain, Sparkles } from 'lucide-react'
+import { Clock, MapPin, Users, Calendar, Brain, Sparkles } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import * as echarts from 'echarts'
 import type { Dream } from '@/types/dream'

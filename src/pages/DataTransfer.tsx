@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { useDreamStore } from '@/store/dreamStore'
 import type { Dream } from '@/types/dream'
-import { Download, Upload, FileJson, AlertCircle, CheckCircle2, XCircle, Trash2 } from 'lucide-react'
+import { Download, Upload, FileJson, AlertCircle, CheckCircle2, XCircle } from 'lucide-react'
 
 interface ImportPreview {
   newCount: number
@@ -10,8 +10,6 @@ interface ImportPreview {
   validDreams: Dream[]
   errors: { index: number; reason: string }[]
 }
-
-const REQUIRED_FIELDS: (keyof Dream)[] = ['text', 'date', 'wakeTime', 'emotionScore', 'clarityScore', 'people', 'places', 'keywords']
 
 function isValidDream(item: unknown): item is Dream {
   if (typeof item !== 'object' || item === null) return false
