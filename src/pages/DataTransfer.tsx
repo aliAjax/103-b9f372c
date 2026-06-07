@@ -55,6 +55,14 @@ function describeErrors(item: unknown): string[] {
 }
 
 function levenshteinDistance(a: string, b: string): number {
+  if (a.length === 0) return b.length
+  if (b.length === 0) return a.length
+  if (a.length > 1000 || b.length > 1000) {
+    const shorter = a.length <= b.length ? a : b
+    const longer = a.length > b.length ? a : b
+    const overlap = longer.slice(0, 1000)
+    return levenshteinDistance(shorter, overlap) + Math.abs(longer.length - 1000)
+  }
   const matrix: number[][] = []
   for (let i = 0; i <= b.length; i++) {
     matrix[i] = [i]
@@ -79,22 +87,43 @@ function levenshteinDistance(a: string, b: string): number {
 }
 
 function textSimilarity(a: string, b: string): number {
+  if (typeof a !== 'string' || typeof b !== 'string') return 0
   const cleanA = a.trim().toLowerCase().replace(/\s+/g, ' ')
   const cleanB = b.trim().toLowerCase().replace(/\s+/g, ' ')
   if (cleanA === cleanB) return 1
+  if (cleanA.length === 0 || cleanB.length === 0) return 0
   const maxLen = Math.max(cleanA.length, cleanB.length)
   if (maxLen === 0) return 1
   const distance = levenshteinDistance(cleanA, cleanB)
-  return 1 - distance / maxLen
+  const similarity = 1 - distance / maxLen
+  return Math.max(0, Math.min(1, similarity))
+}
+
+function isValidDate(dateStr: string): boolean {
+  if (!dateStr || typeof dateStr !== 'string') return false
+  const date = new Date(dateStr)
+  return !isNaN(date.getTime()) && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
+}
+
+function isValidWakeTime(timeStr: string): boolean {
+  if (!timeStr || typeof timeStr !== 'string') return false
+  return /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr)
 }
 
 function isSuspectedDuplicate(dream: Dream, existing: Dream): { isDuplicate: boolean; similarity: number } {
+  if (!isValidDate(dream.date) || !isValidDate(existing.date)) {
+    return { isDuplicate: false, similarity: 0 }
+  }
   if (dream.date !== existing.date) return { isDuplicate: false, similarity: 0 }
+  if (!dream.text.trim() || !existing.text.trim()) {
+    return { isDuplicate: false, similarity: 0 }
+  }
   const similarity = textSimilarity(dream.text, existing.text)
   if (similarity >= 0.85) {
     return { isDuplicate: true, similarity }
   }
-  if (dream.wakeTime === existing.wakeTime && similarity >= 0.7) {
+  const hasValidWakeTime = isValidWakeTime(dream.wakeTime) && isValidWakeTime(existing.wakeTime)
+  if (hasValidWakeTime && dream.wakeTime === existing.wakeTime && similarity >= 0.8) {
     return { isDuplicate: true, similarity }
   }
   return { isDuplicate: false, similarity }
